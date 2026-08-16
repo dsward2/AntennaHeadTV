@@ -13,14 +13,21 @@ the shared `AntennaHeadAPI` package — matching how `AntennaHead` and
 `ControlBooth` are already independent repos tied together by shared
 packages.
 
-## Status: scaffolding
+## Status: working, growing toward parity
 
-A minimal but working client: connect to a Mac by address, browse
-favorites/categories, tune/scan/stop, see now-playing status, and hear the
-live stream. Verified via `xcodebuild build` for the tvOS Simulator (Xcode's
-own toolchain, no `xcodegen` or other generator — the `.xcodeproj` is
-hand-authored, mirroring `AntennaHead.xcodeproj`'s own conventions), and
-against real hardware (Apple TV 4K).
+Verified end to end on real hardware (Apple TV 4K): connect to a Mac by
+address, browse favorites/categories, tune/scan/stop, hear the live stream,
+and — as of this pass — use Devices, Recordings, and ControlBooth/AirPlay
+source switching too. Also verified via `xcodebuild build` for the tvOS
+Simulator (Xcode's own toolchain, no `xcodegen` or other generator — the
+`.xcodeproj` is hand-authored, mirroring `AntennaHead.xcodeproj`'s own
+conventions).
+
+**Layout:** a master-detail `NavigationSplitView` — a sidebar of sections on
+the left (Now Playing, Favorites, Categories, Devices, Recordings,
+ControlBooth, AirPlay), each section's content filling the large detail area
+on the right. Replaced the original single-screen layout once the feature
+set grew past what one screen could hold.
 
 **What's here:**
 
@@ -28,8 +35,8 @@ against real hardware (Apple TV 4K).
 |---|---|
 | `AntennaHeadTVApp.swift` | App entry point. |
 | `AntennaHeadAPIClient.swift` | Thin `URLSession` wrapper over `AntennaHeadAPI`'s types/endpoints. Plain HTTP, no auth yet — see below. |
-| `AntennaHeadViewModel.swift` | `@Observable` state: connection, now-playing, favorites, categories. Also owns the `AVPlayer` — one continuous player for the session, pointed at AntennaHead's HLS mount (`/hls/index.m3u8`, same host:port as the JSON API), since the live stream reflects whatever's currently tuned rather than being per-frequency. **This wiring was missing from the initial scaffold** — the first pass built the full tune/scan/stop control flow but never actually played the audio; caught during real hardware testing. |
-| `ContentView.swift` | `ConnectScreen` (manual host entry) → `NowPlayingScreen` (now-playing + Stop, tappable favorites/categories lists, `List` gets Siri Remote focus navigation for free). |
+| `AntennaHeadViewModel.swift` | `@Observable` state for the connection and every section (now-playing, favorites, categories, devices, recordings, ControlBooth/AirPlay status), loaded lazily per section rather than all upfront. Also owns the shared `AVPlayer`: normally pointed at AntennaHead's HLS mount (`/hls/index.m3u8`, same host:port as the JSON API, since the live stream reflects whatever's currently tuned rather than being per-frequency), but swappable to a recording's Range-capable download URL for real seek support, then back to live the next time a listen action runs — mirrors the web UI's own live/download-mode `<audio>` element switching (`Web/index.html`). |
+| `ContentView.swift` | `ConnectScreen` (manual host entry) → `MainScreen`, a `NavigationSplitView` sidebar/detail pair, one detail view per section. |
 
 **Deliberately not built yet** (see the feasibility study for the full list):
 
@@ -40,15 +47,15 @@ against real hardware (Apple TV 4K).
 - **HTTPS / Basic Auth.** The client only speaks plain HTTP with no
   credentials, unlike the web UI. Fine for getting the rest of the app built
   and tested; not fine to ship as-is if AntennaHead's HTTPS/auth is enabled.
-- **Push updates.** `NowPlayingScreen` polls `/api/v1/now-playing` every 2
-  seconds, matching the web UI's own cadence. An SSE/WebSocket channel is a
-  flagged follow-up once there's a second client (watchOS) that would also
-  benefit from it.
-- **Everything beyond browse/tune/scan/stop** — recordings, AirPlay/
-  ControlBooth source switching, device tuning, scanner category editing.
-  Scope was deliberately kept to what proves the API contract end to end;
-  see the feasibility study's note on tvOS aiming for a fuller feature set
-  over time, not starting as a 1:1 port.
+- **Push updates.** Now Playing polls `/api/v1/now-playing` every 2 seconds,
+  matching the web UI's own cadence. An SSE/WebSocket channel is a flagged
+  follow-up once there's a second client (watchOS) that would also benefit
+  from it.
+- **Tuner, Settings, Custom Tasks, Scanner category editing.** Form-heavy
+  admin surfaces (typing a frequency, Sox filter strings, streaming bitrate)
+  that fit a keyboard/mouse better than a Siri Remote — left for a later
+  pass, not forced into this UI. Devices' Sox output-filter field is
+  similarly skipped in favor of `StartDeviceRequest`'s `"vol 1"` default.
 
 ## Building
 

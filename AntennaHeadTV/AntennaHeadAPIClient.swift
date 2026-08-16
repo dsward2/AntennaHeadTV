@@ -101,4 +101,50 @@ actor AntennaHeadAPIClient {
     func stop() async throws -> NowPlayingStatus {
         try await post(APIEndpoint.stop)
     }
+
+    func devices() async throws -> [DeviceSummary] {
+        try await get(APIEndpoint.devices)
+    }
+
+    @discardableResult
+    func startDevice(name: String) async throws -> NowPlayingStatus {
+        try await post(APIEndpoint.startDevice, body: StartDeviceRequest(deviceName: name))
+    }
+
+    func recordings() async throws -> [RecordingSummary] {
+        try await get(APIEndpoint.recordings)
+    }
+
+    func controlBoothStatus() async throws -> ControlBoothStatus {
+        try await get(APIEndpoint.controlBoothStatus)
+    }
+
+    @discardableResult
+    func launchControlBooth() async throws -> ControlBoothStatus {
+        try await post(APIEndpoint.controlBoothLaunch)
+    }
+
+    @discardableResult
+    func startControlBoothPipeline(named name: String) async throws -> NowPlayingStatus {
+        try await post(APIEndpoint.controlBoothStart, body: StartControlBoothPipelineRequest(pipelineName: name))
+    }
+
+    @discardableResult
+    func stopControlBooth() async throws -> NowPlayingStatus {
+        try await post(APIEndpoint.controlBoothStop)
+    }
+
+    func airPlayStatus() async throws -> AirPlayReceiverStatus {
+        try await get(APIEndpoint.airPlayStatus)
+    }
+
+    @discardableResult
+    func airPlayListen() async throws -> NowPlayingStatus {
+        try await post(APIEndpoint.airPlayListen)
+    }
+
+    @discardableResult
+    func airPlayStop() async throws -> NowPlayingStatus {
+        try await post(APIEndpoint.airPlayStop)
+    }
 }
