@@ -1,0 +1,362 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		9307AC0092615E6B5C8A5E1B /* AntennaHeadTVApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDBD7DE15257F7A42523EEA9 /* AntennaHeadTVApp.swift */; };
+		AE922B434A6C132B014967DC /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5370F1D94791BE9A99B5F2 /* ContentView.swift */; };
+		3420EBD535614A060E0D5473 /* AntennaHeadAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E243590E5BE3CE0A2921C53 /* AntennaHeadAPIClient.swift */; };
+		EFE180A7392678078FB71761 /* AntennaHeadViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47544737481626B941255C40 /* AntennaHeadViewModel.swift */; };
+		9E707DA109869A4369AE1115 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 08991CD000062C6E78499BF9 /* Assets.xcassets */; };
+		A5910A0609AA6C46A142624A /* AntennaHeadAPI in Frameworks */ = {isa = PBXBuildFile; productRef = 363105A2CAE88662BB2D0739 /* AntennaHeadAPI */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		DDBD7DE15257F7A42523EEA9 /* AntennaHeadTVApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AntennaHeadTVApp.swift; sourceTree = "<group>"; };
+		7E5370F1D94791BE9A99B5F2 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		0E243590E5BE3CE0A2921C53 /* AntennaHeadAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AntennaHeadAPIClient.swift; sourceTree = "<group>"; };
+		47544737481626B941255C40 /* AntennaHeadViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AntennaHeadViewModel.swift; sourceTree = "<group>"; };
+		08991CD000062C6E78499BF9 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		C6BC167D571333661C064EAB /* AntennaHeadTV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AntennaHeadTV.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		2F7139992471B3F2FF98979C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A5910A0609AA6C46A142624A /* AntennaHeadAPI in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		B7B6D4B80BC7A660D0572BD6 = {
+			isa = PBXGroup;
+			children = (
+				B20A3A9B578B8AC0CFA20372 /* AntennaHeadTV */,
+				9FEBFEC873280966210B68C2 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		B20A3A9B578B8AC0CFA20372 /* AntennaHeadTV */ = {
+			isa = PBXGroup;
+			children = (
+				DDBD7DE15257F7A42523EEA9 /* AntennaHeadTVApp.swift */,
+				7E5370F1D94791BE9A99B5F2 /* ContentView.swift */,
+				47544737481626B941255C40 /* AntennaHeadViewModel.swift */,
+				0E243590E5BE3CE0A2921C53 /* AntennaHeadAPIClient.swift */,
+				08991CD000062C6E78499BF9 /* Assets.xcassets */,
+			);
+			path = AntennaHeadTV;
+			sourceTree = "<group>";
+		};
+		9FEBFEC873280966210B68C2 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C6BC167D571333661C064EAB /* AntennaHeadTV.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		1FB206711ADD49F78E5A00AC /* AntennaHeadTV */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 07AAF3B4672F600C40E02474 /* Build configuration list for PBXNativeTarget "AntennaHeadTV" */;
+			buildPhases = (
+				00F751FA821DBE0E9B9299DD /* Sources */,
+				2F7139992471B3F2FF98979C /* Frameworks */,
+				3A9B7A7B779D2D2E093B1D4F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AntennaHeadTV;
+			packageProductDependencies = (
+				363105A2CAE88662BB2D0739 /* AntennaHeadAPI */,
+			);
+			productName = AntennaHeadTV;
+			productReference = C6BC167D571333661C064EAB /* AntennaHeadTV.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		0851567B1758076049641930 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2650;
+				LastUpgradeCheck = 2650;
+				TargetAttributes = {
+					1FB206711ADD49F78E5A00AC = {
+						CreatedOnToolsVersion = 26.5;
+					};
+				};
+			};
+			buildConfigurationList = 8A1086292A842BE97EEAACA7 /* Build configuration list for PBXProject "AntennaHeadTV" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = B7B6D4B80BC7A660D0572BD6;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				13CEA28467F638528A95CDF0 /* XCLocalSwiftPackageReference "../AntennaHeadAPI" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 9FEBFEC873280966210B68C2 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				1FB206711ADD49F78E5A00AC /* AntennaHeadTV */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		3A9B7A7B779D2D2E093B1D4F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9E707DA109869A4369AE1115 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		00F751FA821DBE0E9B9299DD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9307AC0092615E6B5C8A5E1B /* AntennaHeadTVApp.swift in Sources */,
+				AE922B434A6C132B014967DC /* ContentView.swift in Sources */,
+				EFE180A7392678078FB71761 /* AntennaHeadViewModel.swift in Sources */,
+				3420EBD535614A060E0D5473 /* AntennaHeadAPIClient.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		3A4EADD60B3D343C2C30B340 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = appletvos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				TVOS_DEPLOYMENT_TARGET = 17.0;
+			};
+			name = Debug;
+		};
+		5B789E3E79A30F948045E325 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = appletvos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				TVOS_DEPLOYMENT_TARGET = 17.0;
+			};
+			name = Release;
+		};
+		81EC32CA3FD6A12C219212E2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MMFBWVS455;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dsward.AntennaHeadTV;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = appletvos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TVOS_DEPLOYMENT_TARGET = 17.0;
+			};
+			name = Debug;
+		};
+		F79F27070AB0D52C885940E4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = MMFBWVS455;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dsward.AntennaHeadTV;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = appletvos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TVOS_DEPLOYMENT_TARGET = 17.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		8A1086292A842BE97EEAACA7 /* Build configuration list for PBXProject "AntennaHeadTV" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3A4EADD60B3D343C2C30B340 /* Debug */,
+				5B789E3E79A30F948045E325 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		07AAF3B4672F600C40E02474 /* Build configuration list for PBXNativeTarget "AntennaHeadTV" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				81EC32CA3FD6A12C219212E2 /* Debug */,
+				F79F27070AB0D52C885940E4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		13CEA28467F638528A95CDF0 /* XCLocalSwiftPackageReference "../AntennaHeadAPI" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../AntennaHeadAPI;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		363105A2CAE88662BB2D0739 /* AntennaHeadAPI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 13CEA28467F638528A95CDF0 /* XCLocalSwiftPackageReference "../AntennaHeadAPI" */;
+			productName = AntennaHeadAPI;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 0851567B1758076049641930 /* Project object */;
+}
