@@ -16,10 +16,11 @@ packages.
 ## Status: scaffolding
 
 A minimal but working client: connect to a Mac by address, browse
-favorites/categories, tune/scan/stop, see now-playing status. Verified via
-`xcodebuild build` for the tvOS Simulator (Xcode's own toolchain, no
-`xcodegen` or other generator — the `.xcodeproj` is hand-authored, mirroring
-`AntennaHead.xcodeproj`'s own conventions).
+favorites/categories, tune/scan/stop, see now-playing status, and hear the
+live stream. Verified via `xcodebuild build` for the tvOS Simulator (Xcode's
+own toolchain, no `xcodegen` or other generator — the `.xcodeproj` is
+hand-authored, mirroring `AntennaHead.xcodeproj`'s own conventions), and
+against real hardware (Apple TV 4K).
 
 **What's here:**
 
@@ -27,7 +28,7 @@ favorites/categories, tune/scan/stop, see now-playing status. Verified via
 |---|---|
 | `AntennaHeadTVApp.swift` | App entry point. |
 | `AntennaHeadAPIClient.swift` | Thin `URLSession` wrapper over `AntennaHeadAPI`'s types/endpoints. Plain HTTP, no auth yet — see below. |
-| `AntennaHeadViewModel.swift` | `@Observable` state: connection, now-playing, favorites, categories. |
+| `AntennaHeadViewModel.swift` | `@Observable` state: connection, now-playing, favorites, categories. Also owns the `AVPlayer` — one continuous player for the session, pointed at AntennaHead's HLS mount (`/hls/index.m3u8`, same host:port as the JSON API), since the live stream reflects whatever's currently tuned rather than being per-frequency. **This wiring was missing from the initial scaffold** — the first pass built the full tune/scan/stop control flow but never actually played the audio; caught during real hardware testing. |
 | `ContentView.swift` | `ConnectScreen` (manual host entry) → `NowPlayingScreen` (now-playing + Stop, tappable favorites/categories lists, `List` gets Siri Remote focus navigation for free). |
 
 **Deliberately not built yet** (see the feasibility study for the full list):
