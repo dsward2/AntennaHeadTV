@@ -110,8 +110,19 @@ private struct MainScreen: View {
 
     var body: some View {
         NavigationSplitView {
-            List(SidebarSection.allCases, selection: $selection) { section in
-                Label(section.rawValue, systemImage: section.systemImage)
+            // A plain `List(data, selection:)` binding doesn't reliably commit
+            // selection from a Siri Remote press on tvOS when the rows are
+            // just `Label`s — that selection-commit mechanism is more an
+            // iPadOS/macOS pattern. Setting `selection` directly from a
+            // `Button` action matches how every other list in this app
+            // already works (Favorites/Categories/Devices/Recordings all set
+            // state from a Button, never from a List selection binding).
+            List(SidebarSection.allCases) { section in
+                Button {
+                    selection = section
+                } label: {
+                    Label(section.rawValue, systemImage: section.systemImage)
+                }
             }
             .navigationTitle("AntennaHead")
             .toolbar {

@@ -29,6 +29,14 @@ ControlBooth, AirPlay), each section's content filling the large detail area
 on the right. Replaced the original single-screen layout once the feature
 set grew past what one screen could hold.
 
+**tvOS gotcha hit and fixed:** the sidebar first shipped as
+`List(data, selection:)` with plain `Label` rows — the detail pane never
+changed no matter which section was highlighted, because that
+selection-commit binding doesn't reliably fire from a Siri Remote press on
+tvOS (it's more of an iPadOS/macOS pattern). Fixed by setting `selection`
+directly from a `Button` action per row instead, matching how every other
+list in this app already works.
+
 **What's here:**
 
 | File | Purpose |
