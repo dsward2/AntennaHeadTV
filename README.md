@@ -17,7 +17,7 @@ packages.
 
 Verified end to end on real hardware (Apple TV 4K): connect to a Mac by
 address, browse favorites/categories, tune/scan/stop, hear the live stream,
-and — as of this pass — use Devices, Recordings, and ControlBooth/AirPlay
+and — as of this pass — use Devices, Recordings, and ControlBooth
 source switching too. Also verified via `xcodebuild build` for the tvOS
 Simulator (Xcode's own toolchain, no `xcodegen` or other generator — the
 `.xcodeproj` is hand-authored, mirroring `AntennaHead.xcodeproj`'s own
@@ -25,7 +25,7 @@ conventions).
 
 **Layout:** a master-detail `NavigationSplitView` — a sidebar of sections on
 the left (Now Playing, Favorites, Categories, Devices, Recordings,
-ControlBooth, AirPlay), each section's content filling the large detail area
+ControlBooth), each section's content filling the large detail area
 on the right. Replaced the original single-screen layout once the feature
 set grew past what one screen could hold.
 
@@ -43,7 +43,7 @@ list in this app already works.
 |---|---|
 | `AntennaHeadTVApp.swift` | App entry point. |
 | `AntennaHeadAPIClient.swift` | Thin `URLSession` wrapper over `AntennaHeadAPI`'s types/endpoints. Plain HTTP, no auth yet — see below. |
-| `AntennaHeadViewModel.swift` | `@Observable` state for the connection and every section (now-playing, favorites, categories, devices, recordings, ControlBooth/AirPlay status), loaded lazily per section rather than all upfront. Also owns the shared `AVPlayer`: normally pointed at AntennaHead's HLS mount (`/hls/index.m3u8`, same host:port as the JSON API, since the live stream reflects whatever's currently tuned rather than being per-frequency), but swappable to a recording's Range-capable download URL for real seek support, then back to live the next time a listen action runs — mirrors the web UI's own live/download-mode `<audio>` element switching (`Web/index.html`). |
+| `AntennaHeadViewModel.swift` | `@Observable` state for the connection and every section (now-playing, favorites, categories, devices, recordings, ControlBooth status), loaded lazily per section rather than all upfront. Also owns the shared `AVPlayer`: normally pointed at AntennaHead's HLS mount (`/hls/index.m3u8`, same host:port as the JSON API, since the live stream reflects whatever's currently tuned rather than being per-frequency), but swappable to a recording's Range-capable download URL for real seek support, then back to live the next time a listen action runs — mirrors the web UI's own live/download-mode `<audio>` element switching (`Web/index.html`). |
 | `ContentView.swift` | `ConnectScreen` (manual host entry) → `MainScreen`, a `NavigationSplitView` sidebar/detail pair, one detail view per section. |
 
 **Deliberately not built yet** (see the feasibility study for the full list):

@@ -74,7 +74,7 @@ private struct ConnectScreen: View {
 
 /// The sidebar's sections. Deliberately a subset of the web UI's own top
 /// menu (Favorites, Categories, Tuner, Recordings, Devices, ControlBooth,
-/// AirPlay, Settings, Info) — Tuner (manual frequency entry) and Settings
+/// Settings, Info) — Tuner (manual frequency entry) and Settings
 /// are form-heavy admin surfaces that fit a keyboard/mouse better than a
 /// Siri Remote, and are left for a later pass rather than forced in here.
 private enum SidebarSection: String, CaseIterable, Identifiable {
@@ -84,7 +84,6 @@ private enum SidebarSection: String, CaseIterable, Identifiable {
     case devices = "Devices"
     case recordings = "Recordings"
     case controlBooth = "ControlBooth"
-    case airPlay = "AirPlay"
 
     var id: String { rawValue }
 
@@ -96,7 +95,6 @@ private enum SidebarSection: String, CaseIterable, Identifiable {
         case .devices: "mic.fill"
         case .recordings: "recordingtape"
         case .controlBooth: "slider.horizontal.3"
-        case .airPlay: "airplayaudio"
         }
     }
 }
@@ -138,7 +136,6 @@ private struct MainScreen: View {
             case .devices: DevicesDetail(viewModel: viewModel)
             case .recordings: RecordingsDetail(viewModel: viewModel)
             case .controlBooth: ControlBoothDetail(viewModel: viewModel)
-            case .airPlay: AirPlayDetail(viewModel: viewModel)
             }
         }
     }
@@ -343,46 +340,6 @@ private struct ControlBoothDetail: View {
             }
         }
         .task { await viewModel.loadControlBoothStatus() }
-    }
-}
-
-/// AirPlay Receiver status. There's deliberately no remote "enable" action
-/// here, matching the web page — the capture pipeline is only toggled in
-/// AntennaHead's own Configuration tab.
-private struct AirPlayDetail: View {
-    var viewModel: AntennaHeadViewModel
-
-    var body: some View {
-        Group {
-            if let status = viewModel.airPlayStatus {
-                VStack(alignment: .leading, spacing: 16) {
-                    if status.isRunning {
-                        Text("AirPlay Receiver is running.")
-                        if let lastError = status.lastError {
-                            Text(lastError)
-                                .foregroundStyle(.red)
-                        }
-                        HStack(spacing: 16) {
-                            Button("Listen") {
-                                Task { await viewModel.airPlayListen() }
-                            }
-                            Button("Stop") {
-                                Task { await viewModel.airPlayStop() }
-                            }
-                        }
-                    } else {
-                        Text("Enable AirPlay Receiver in AntennaHead's Configuration tab first.")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            } else {
-                ProgressView()
-            }
-        }
-        .padding(60)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .navigationTitle("AirPlay")
-        .task { await viewModel.loadAirPlayStatus() }
     }
 }
 

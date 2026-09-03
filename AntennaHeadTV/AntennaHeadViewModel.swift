@@ -5,7 +5,7 @@ import Foundation
 /// Owns the connection to one AntennaHead Mac, the audio playback, and the
 /// state `ContentView` renders.
 ///
-/// Section data (devices, recordings, ControlBooth/AirPlay status) is loaded
+/// Section data (devices, recordings, ControlBooth status) is loaded
 /// lazily, one section at a time, rather than all upfront in `connect()` —
 /// matches the web UI's own page-by-page loading, and avoids e.g. an
 /// AppleEvents round trip to a ControlBooth that isn't even running just to
@@ -22,7 +22,6 @@ final class AntennaHeadViewModel {
     private(set) var devices: [DeviceSummary] = []
     private(set) var recordings: [RecordingSummary] = []
     private(set) var controlBoothStatus: ControlBoothStatus?
-    private(set) var airPlayStatus: AirPlayReceiverStatus?
     /// True while the shared player is pointed at a recording instead of the
     /// live stream — drives the "Now Playing" detail's own status line, since
     /// `nowPlaying` (server-side tuning state) doesn't know about local
@@ -76,7 +75,6 @@ final class AntennaHeadViewModel {
         devices = []
         recordings = []
         controlBoothStatus = nil
-        airPlayStatus = nil
     }
 
     func refreshNowPlaying() async {
@@ -155,7 +153,7 @@ final class AntennaHeadViewModel {
     /// mount — mirrors the web UI's "Download & Play" (real seek support,
     /// see `RecordingSummary.downloadPath`'s doc comment), not "Listen"
     /// (which would route it through the live pipeline). The live stream
-    /// resumes the next time a Tune/Scan/Device/ControlBooth/AirPlay listen
+    /// resumes the next time a Tune/Scan/Device/ControlBooth listen
     /// action runs — same as the web UI only restoring its live `<audio>`
     /// src from an explicit "start listening" action, not from mere
     /// navigation between pages.
@@ -203,34 +201,6 @@ final class AntennaHeadViewModel {
         }
     }
 
-    // MARK: AirPlay
-
-    func loadAirPlayStatus() async {
-        do {
-            airPlayStatus = try await client.airPlayStatus()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    func airPlayListen() async {
-        do {
-            nowPlaying = try await client.airPlayListen()
-            resumeLivePlayback()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    func airPlayStop() async {
-        do {
-            nowPlaying = try await client.airPlayStop()
-            player?.pause()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
     // MARK: Playback
 
     /// Points a fresh `AVPlayer` at AntennaHead's HLS mount (`/hls/index.m3u8`,
@@ -261,7 +231,7 @@ final class AntennaHeadViewModel {
 
     /// Switches the shared player back to the live stream if a recording was
     /// playing, then resumes — called from every "start listening to X"
-    /// action (tune, scan, device, ControlBooth, AirPlay), matching the web
+    /// action (tune, scan, device, ControlBooth), matching the web
     /// UI's `startAudioPlayer()` restoring `liveStreamAudioSrc` after
     /// fast-download playback (see `AntennaHead/Web/index.html`).
     private func resumeLivePlayback() {

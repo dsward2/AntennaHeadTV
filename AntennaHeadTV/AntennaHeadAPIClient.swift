@@ -133,18 +133,4 @@ actor AntennaHeadAPIClient {
     func stopControlBooth() async throws -> NowPlayingStatus {
         try await post(APIEndpoint.controlBoothStop)
     }
-
-    func airPlayStatus() async throws -> AirPlayReceiverStatus {
-        try await get(APIEndpoint.airPlayStatus)
-    }
-
-    @discardableResult
-    func airPlayListen() async throws -> NowPlayingStatus {
-        try await post(APIEndpoint.airPlayListen)
-    }
-
-    @discardableResult
-    func airPlayStop() async throws -> NowPlayingStatus {
-        try await post(APIEndpoint.airPlayStop)
-    }
 }
