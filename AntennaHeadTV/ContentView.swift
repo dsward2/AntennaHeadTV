@@ -221,19 +221,25 @@ private struct NowPlayingDetail: View {
         }
     }
 
-    /// Station name (or recording name) + frequency, the Status/Captions/
-    /// Spatial Audio tab switcher, and Stop, all in one compact row instead
-    /// of stacked as separate lines — frees up the vertical space below for
-    /// whichever tab's content is showing (most visibly the Captions
-    /// transcript, which now gets most of the screen instead of a fixed
-    /// minimum height). The name/frequency stays visible no matter which tab
-    /// is selected, same as before this consolidation.
+    /// Station name (or recording name) + frequency on its own line, then a
+    /// row with the Status/Captions/Spatial Audio tab switcher and Stop.
+    ///
+    /// These four buttons used to share a single horizontal row with the
+    /// header, with `.layoutPriority(1)` on the header and a `Spacer`
+    /// between. A long station name then claimed the whole row: the buttons
+    /// were compressed until their labels wrapped ("Spatial Audio" onto two
+    /// lines), and — worse — until their frames were narrow/offset enough
+    /// that the tvOS focus engine skipped the row entirely, leaving the
+    /// Siri Remote able to move only between the top tab bar and the
+    /// Disconnect toolbar item. Giving the button row its own full-width
+    /// line, a fixed (non-compressing) size, and single-line labels keeps
+    /// every button reliably focusable no matter how long the header is.
+    /// Stop now sits just after the tab switcher rather than pinned far
+    /// right — less Siri Remote travel, and the header no longer competes
+    /// for the space.
     private var controlBar: some View {
-        HStack(alignment: .center, spacing: 32) {
+        VStack(alignment: .leading, spacing: 16) {
             nowPlayingHeader
-                .layoutPriority(1)
-
-            Spacer(minLength: 24)
 
             HStack(spacing: 16) {
                 ForEach(NowPlayingTab.allCases) { candidate in
@@ -243,12 +249,14 @@ private struct NowPlayingDetail: View {
                     .buttonStyle(.bordered)
                     .tint(candidate == tab ? .accentColor : nil)
                 }
-            }
 
-            Button("Stop") {
-                Task { await viewModel.stop() }
+                Button("Stop") {
+                    Task { await viewModel.stop() }
+                }
+                .disabled(!viewModel.isPlayingRecording && viewModel.nowPlaying?.taskMode == .stopped)
             }
-            .disabled(!viewModel.isPlayingRecording && viewModel.nowPlaying?.taskMode == .stopped)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
         }
     }
 

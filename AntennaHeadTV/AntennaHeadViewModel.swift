@@ -47,6 +47,21 @@ final class AntennaHeadViewModel {
         self.client = AntennaHeadAPIClient(host: host)
     }
 
+    /// Surfaces `error` in `errorMessage` unless it's merely task
+    /// cancellation. `URLSession`'s async API throws `URLError.cancelled`
+    /// when its enclosing `Task` is cancelled, which happens routinely: the
+    /// Now Playing poll loops (`.task` / `.task(id:)` in `NowPlayingDetail`)
+    /// are torn down and restarted whenever the user switches tabs or tvOS
+    /// backgrounds the app, cancelling whatever request was in flight. That
+    /// isn't a failure worth showing in red — and because nothing else ever
+    /// cleared `errorMessage` after `connect()`, a single stray "cancelled"
+    /// used to stay pinned on screen until the next reconnect.
+    private func report(_ error: Error) {
+        if error is CancellationError { return }
+        if let urlError = error as? URLError, urlError.code == .cancelled { return }
+        errorMessage = error.localizedDescription
+    }
+
     /// Fetches now-playing, favorites, and categories concurrently and flips
     /// `isConnected` only if all three succeed — a client that's connected
     /// but missing part of its data isn't a state this scaffold tries to
@@ -70,7 +85,7 @@ final class AntennaHeadViewModel {
             startPlayback()
         } catch {
             isConnected = false
-            errorMessage = error.localizedDescription
+            report(error)
         }
     }
 
@@ -90,24 +105,27 @@ final class AntennaHeadViewModel {
     func refreshNowPlaying() async {
         do {
             nowPlaying = try await client.nowPlaying()
+            errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            report(error)
         }
     }
 
     func refreshCaptions() async {
         do {
             captions = try await client.captions()
+            errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            report(error)
         }
     }
 
     func refreshSpatialAudio() async {
         do {
             spatialAudio = try await client.spatialAudio()
+            errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            report(error)
         }
     }
 
@@ -117,28 +135,31 @@ final class AntennaHeadViewModel {
     func setSpatialAudio(azimuth: Double? = nil, elevation: Double? = nil, distance: Double? = nil) async {
         do {
             spatialAudio = try await client.setSpatialAudio(azimuth: azimuth, elevation: elevation, distance: distance)
+            errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            report(error)
         }
     }
 
     func tune(_ frequency: FrequencySummary) async {
         do {
             nowPlaying = try await client.tune(frequencyID: frequency.id)
+            errorMessage = nil
             resumeLivePlayback()
             selectedSection = .nowPlaying
         } catch {
-            errorMessage = error.localizedDescription
+            report(error)
         }
     }
 
     func startScan(_ category: CategorySummary) async {
         do {
             nowPlaying = try await client.startScan(categoryID: category.id)
+            errorMessage = nil
             resumeLivePlayback()
             selectedSection = .nowPlaying
         } catch {
-            errorMessage = error.localizedDescription
+            report(error)
         }
     }
 
@@ -152,9 +173,10 @@ final class AntennaHeadViewModel {
     func stop() async {
         do {
             nowPlaying = try await client.stop()
+            errorMessage = nil
             player?.pause()
         } catch {
-            errorMessage = error.localizedDescription
+            report(error)
         }
     }
 
@@ -163,18 +185,20 @@ final class AntennaHeadViewModel {
     func loadDevices() async {
         do {
             devices = try await client.devices()
+            errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            report(error)
         }
     }
 
     func startDevice(_ device: DeviceSummary) async {
         do {
             nowPlaying = try await client.startDevice(name: device.name)
+            errorMessage = nil
             resumeLivePlayback()
             selectedSection = .nowPlaying
         } catch {
-            errorMessage = error.localizedDescription
+            report(error)
         }
     }
 
@@ -183,8 +207,9 @@ final class AntennaHeadViewModel {
     func loadRecordings() async {
         do {
             recordings = try await client.recordings()
+            errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            report(error)
         }
     }
 
@@ -211,35 +236,39 @@ final class AntennaHeadViewModel {
     func loadControlBoothStatus() async {
         do {
             controlBoothStatus = try await client.controlBoothStatus()
+            errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            report(error)
         }
     }
 
     func launchControlBooth() async {
         do {
             controlBoothStatus = try await client.launchControlBooth()
+            errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            report(error)
         }
     }
 
     func startControlBoothPipeline(named name: String) async {
         do {
             nowPlaying = try await client.startControlBoothPipeline(named: name)
+            errorMessage = nil
             resumeLivePlayback()
             selectedSection = .nowPlaying
         } catch {
-            errorMessage = error.localizedDescription
+            report(error)
         }
     }
 
     func stopControlBooth() async {
         do {
             nowPlaying = try await client.stopControlBooth()
+            errorMessage = nil
             player?.pause()
         } catch {
-            errorMessage = error.localizedDescription
+            report(error)
         }
     }
 
