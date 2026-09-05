@@ -1,5 +1,6 @@
 import AntennaHeadAPI
 import SwiftUI
+import UIKit
 
 /// Manual host entry (no Bonjour discovery yet — see the feasibility study's
 /// open item on pairing) → a master-detail layout: a sidebar of sections on
@@ -291,6 +292,14 @@ private struct CaptionsSubview: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 300, alignment: .topLeading)
+        // Reading captions involves no remote presses — exactly the kind of
+        // idle tvOS otherwise (reasonably) reads as "nobody's watching" and
+        // starts the screensaver over. Scoped to just this view's lifetime
+        // (not the whole app) via onAppear/onDisappear, which fire reliably
+        // here since NowPlayingDetail's tab switch actually removes this
+        // view from the hierarchy rather than just hiding it.
+        .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
+        .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
     }
 }
 
