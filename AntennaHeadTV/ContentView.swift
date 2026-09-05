@@ -103,48 +103,56 @@ enum SidebarSection: String, CaseIterable, Identifiable {
     }
 }
 
-/// Master-detail layout: `NavigationSplitView` gives the sidebar list on the
-/// left and a large detail area on the right for free, including Siri Remote
-/// focus navigation between the two columns.
+/// Top-level navigation as a persistent top tab bar, not `NavigationSplitView`'s
+/// sidebar: that sidebar column dynamically resizes/slides based on which
+/// column currently has Siri Remote focus (standard tvOS `NavigationSplitView`
+/// behavior), which reads as distracting motion rather than stable chrome —
+/// reported directly against this screen. `TabView` on tvOS renders as a
+/// fixed top tab bar that doesn't move or hide based on focus, and is the
+/// platform's own idiomatic top-level navigation (matching system apps like
+/// Music and TV), not a workaround standing in for a sidebar.
+///
+/// Each tab wraps its content in its own `NavigationStack` so that content's
+/// `.navigationTitle` (set independently by `NowPlayingDetail`,
+/// `FavoritesDetail`, etc.) still renders, and carries its own "Disconnect"
+/// toolbar item — there's no single sidebar column left to hang one
+/// modifier on for all of them.
 private struct MainScreen: View {
     var viewModel: AntennaHeadViewModel
 
     var body: some View {
-        NavigationSplitView {
-            // A plain `List(data, selection:)` binding doesn't reliably commit
-            // selection from a Siri Remote press on tvOS when the rows are
-            // just `Label`s — that selection-commit mechanism is more an
-            // iPadOS/macOS pattern. Setting `selection` directly from a
-            // `Button` action matches how every other list in this app
-            // already works (Favorites/Categories/Devices/Recordings all set
-            // state from a Button, never from a List selection binding).
-            //
-            // The selection itself lives on `viewModel` rather than as local
-            // `@State` here, so a "start listening" action triggered from any
-            // other detail view can jump back to Now Playing too — see
-            // `AntennaHeadViewModel.selectedSection`.
-            List(SidebarSection.allCases) { section in
-                Button {
-                    viewModel.selectedSection = section
-                } label: {
+        TabView(selection: Binding(
+            get: { viewModel.selectedSection },
+            set: { viewModel.selectedSection = $0 }
+        )) {
+            ForEach(SidebarSection.allCases) { section in
+                NavigationStack {
+                    detail(for: section)
+                        .toolbar {
+                            ToolbarItem {
+                                Button("Disconnect") {
+                                    viewModel.disconnect()
+                                }
+                            }
+                        }
+                }
+                .tabItem {
                     Label(section.rawValue, systemImage: section.systemImage)
                 }
+                .tag(section)
             }
-            .navigationTitle("AntennaHead")
-            .toolbar {
-                Button("Disconnect") {
-                    viewModel.disconnect()
-                }
-            }
-        } detail: {
-            switch viewModel.selectedSection {
-            case .nowPlaying: NowPlayingDetail(viewModel: viewModel)
-            case .favorites: FavoritesDetail(viewModel: viewModel)
-            case .categories: CategoriesDetail(viewModel: viewModel)
-            case .devices: DevicesDetail(viewModel: viewModel)
-            case .recordings: RecordingsDetail(viewModel: viewModel)
-            case .controlBooth: ControlBoothDetail(viewModel: viewModel)
-            }
+        }
+    }
+
+    @ViewBuilder
+    private func detail(for section: SidebarSection) -> some View {
+        switch section {
+        case .nowPlaying: NowPlayingDetail(viewModel: viewModel)
+        case .favorites: FavoritesDetail(viewModel: viewModel)
+        case .categories: CategoriesDetail(viewModel: viewModel)
+        case .devices: DevicesDetail(viewModel: viewModel)
+        case .recordings: RecordingsDetail(viewModel: viewModel)
+        case .controlBooth: ControlBoothDetail(viewModel: viewModel)
         }
     }
 }
@@ -180,6 +188,8 @@ private struct NowPlayingDetail: View {
                     .foregroundStyle(.red)
             }
 
+            nowPlayingHeader
+
             HStack(spacing: 24) {
                 ForEach(NowPlayingTab.allCases) { candidate in
                     Button(candidate.rawValue) {
@@ -191,7 +201,7 @@ private struct NowPlayingDetail: View {
             }
 
             switch tab {
-            case .status: statusContent
+            case .status: statusDetailContent
             case .captions: CaptionsSubview(viewModel: viewModel)
             case .spatialAudio: SpatialPositionSubview(viewModel: viewModel)
             }
@@ -223,29 +233,42 @@ private struct NowPlayingDetail: View {
         }
     }
 
+    /// Station name (or recording name) + frequency — shown above the
+    /// Status/Captions/Spatial Audio tab switcher, not inside just one of
+    /// those tabs' own content, so it stays on screen no matter which is
+    /// selected. Previously this lived entirely inside `statusContent` and
+    /// disappeared the moment you switched to Captions or Spatial Audio.
     @ViewBuilder
-    private var statusContent: some View {
+    private var nowPlayingHeader: some View {
         if viewModel.isPlayingRecording {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(viewModel.nowPlayingRecordingName ?? "Recording")
-                    .font(.title)
-                Text("Playing recording")
-                    .foregroundStyle(.secondary)
-            }
+            Text(viewModel.nowPlayingRecordingName ?? "Recording")
+                .font(.title)
         } else if let status = viewModel.nowPlaying {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(status.stationName)
                     .font(.title)
                 if let frequency = status.formattedFrequency {
                     Text(frequency)
                         .foregroundStyle(.secondary)
                 }
-                Text(status.statusText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         } else {
             Text("Not playing")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// The Status tab's own content — just the extra status line now that
+    /// name/frequency/recording-name live in `nowPlayingHeader` above,
+    /// visible regardless of which tab is selected.
+    @ViewBuilder
+    private var statusDetailContent: some View {
+        if viewModel.isPlayingRecording {
+            Text("Playing recording")
+                .foregroundStyle(.secondary)
+        } else if let status = viewModel.nowPlaying {
+            Text(status.statusText)
+                .font(.caption)
                 .foregroundStyle(.secondary)
         }
     }
