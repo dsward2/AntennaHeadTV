@@ -77,7 +77,10 @@ private struct ConnectScreen: View {
 /// Settings, Info) — Tuner (manual frequency entry) and Settings
 /// are form-heavy admin surfaces that fit a keyboard/mouse better than a
 /// Siri Remote, and are left for a later pass rather than forced in here.
-private enum SidebarSection: String, CaseIterable, Identifiable {
+/// Not `private` — `AntennaHeadViewModel` owns `selectedSection` (so every
+/// "start listening to X" action can jump the user to Now Playing from
+/// wherever it's called) and needs the type visible too.
+enum SidebarSection: String, CaseIterable, Identifiable {
     case nowPlaying = "Now Playing"
     case favorites = "Favorites"
     case categories = "Categories"
@@ -104,7 +107,6 @@ private enum SidebarSection: String, CaseIterable, Identifiable {
 /// focus navigation between the two columns.
 private struct MainScreen: View {
     var viewModel: AntennaHeadViewModel
-    @State private var selection: SidebarSection? = .nowPlaying
 
     var body: some View {
         NavigationSplitView {
@@ -115,9 +117,14 @@ private struct MainScreen: View {
             // `Button` action matches how every other list in this app
             // already works (Favorites/Categories/Devices/Recordings all set
             // state from a Button, never from a List selection binding).
+            //
+            // The selection itself lives on `viewModel` rather than as local
+            // `@State` here, so a "start listening" action triggered from any
+            // other detail view can jump back to Now Playing too — see
+            // `AntennaHeadViewModel.selectedSection`.
             List(SidebarSection.allCases) { section in
                 Button {
-                    selection = section
+                    viewModel.selectedSection = section
                 } label: {
                     Label(section.rawValue, systemImage: section.systemImage)
                 }
@@ -129,7 +136,7 @@ private struct MainScreen: View {
                 }
             }
         } detail: {
-            switch selection ?? .nowPlaying {
+            switch viewModel.selectedSection {
             case .nowPlaying: NowPlayingDetail(viewModel: viewModel)
             case .favorites: FavoritesDetail(viewModel: viewModel)
             case .categories: CategoriesDetail(viewModel: viewModel)
@@ -141,13 +148,28 @@ private struct MainScreen: View {
     }
 }
 
+/// Which of Now Playing's two sub-views is showing. Kept as local `@State`
+/// (not on the view model) — unlike `SidebarSection`, nothing outside this
+/// screen needs to switch it.
+private enum NowPlayingTab: String, CaseIterable, Identifiable {
+    case status = "Status"
+    case captions = "Captions"
+
+    var id: String { rawValue }
+}
+
 /// Now-playing status (live stream or a recording, see
-/// `AntennaHeadViewModel.isPlayingRecording`) + Stop. Owns the periodic
-/// now-playing poll — matches the web UI's own refresh cadence; a real push
-/// channel (SSE/WebSocket) is the flagged follow-up once there's more than
-/// one client depending on this.
+/// `AntennaHeadViewModel.isPlayingRecording`) + Stop, with Live Captions
+/// (mirrors the web UI's `captions.html`) as a second tab rather than its own
+/// sidebar entry — captions only mean anything while something's playing, so
+/// they belong alongside Now Playing rather than beside it.
+///
+/// Owns the periodic now-playing poll — matches the web UI's own refresh
+/// cadence; a real push channel (SSE/WebSocket) is the flagged follow-up once
+/// there's more than one client depending on this.
 private struct NowPlayingDetail: View {
     var viewModel: AntennaHeadViewModel
+    @State private var tab: NowPlayingTab = .status
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -156,28 +178,19 @@ private struct NowPlayingDetail: View {
                     .foregroundStyle(.red)
             }
 
-            if viewModel.isPlayingRecording {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(viewModel.nowPlayingRecordingName ?? "Recording")
-                        .font(.title)
-                    Text("Playing recording")
-                        .foregroundStyle(.secondary)
-                }
-            } else if let status = viewModel.nowPlaying {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(status.stationName)
-                        .font(.title)
-                    if let frequency = status.formattedFrequency {
-                        Text(frequency)
-                            .foregroundStyle(.secondary)
+            HStack(spacing: 24) {
+                ForEach(NowPlayingTab.allCases) { candidate in
+                    Button(candidate.rawValue) {
+                        tab = candidate
                     }
-                    Text(status.statusText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    .buttonStyle(.bordered)
+                    .tint(candidate == tab ? .accentColor : nil)
                 }
-            } else {
-                Text("Not playing")
-                    .foregroundStyle(.secondary)
+            }
+
+            switch tab {
+            case .status: statusContent
+            case .captions: CaptionsSubview(viewModel: viewModel)
             }
 
             Button("Stop") {
@@ -194,6 +207,88 @@ private struct NowPlayingDetail: View {
                 await viewModel.refreshNowPlaying()
             }
         }
+        // Separate from the status poll above and only runs while the
+        // Captions tab is showing — `.task(id:)` cancels and restarts this
+        // loop whenever `tab` changes, so switching away from Captions stops
+        // the extra polling rather than leaving it running unseen.
+        .task(id: tab) {
+            guard tab == .captions else { return }
+            while !Task.isCancelled {
+                await viewModel.refreshCaptions()
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var statusContent: some View {
+        if viewModel.isPlayingRecording {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(viewModel.nowPlayingRecordingName ?? "Recording")
+                    .font(.title)
+                Text("Playing recording")
+                    .foregroundStyle(.secondary)
+            }
+        } else if let status = viewModel.nowPlaying {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(status.stationName)
+                    .font(.title)
+                if let frequency = status.formattedFrequency {
+                    Text(frequency)
+                        .foregroundStyle(.secondary)
+                }
+                Text(status.statusText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } else {
+            Text("Not playing")
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+/// Live speech-to-text, polled from `/captions.json` — see
+/// `CaptionsStatus`'s doc comment. Mirrors `captions.html`: finalized
+/// segments as a scrolling transcript, the current in-progress hypothesis
+/// (if any) below it in a dimmer, italic style.
+private struct CaptionsSubview: View {
+    var viewModel: AntennaHeadViewModel
+
+    var body: some View {
+        Group {
+            if viewModel.captions?.enabled != true {
+                ContentUnavailableView("Captions Off", systemImage: "captions.bubble",
+                                       description: Text("Turn on speech-to-text in AntennaHead under Configuration › Speech-to-Text, then start a station."))
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 12) {
+                            let finals = viewModel.captions?.final ?? []
+                            if finals.isEmpty && (viewModel.captions?.live ?? "").isEmpty {
+                                Text("Waiting for speech…")
+                                    .foregroundStyle(.secondary)
+                            }
+                            ForEach(Array(finals.enumerated()), id: \.offset) { index, line in
+                                Text(line)
+                                    .id(index)
+                            }
+                            if let live = viewModel.captions?.live, !live.isEmpty {
+                                Text(live)
+                                    .foregroundStyle(.secondary)
+                                    .italic()
+                                    .id("live")
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .onChange(of: viewModel.captions?.seq) {
+                        proxy.scrollTo("live", anchor: .bottom)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 300, alignment: .topLeading)
     }
 }
 

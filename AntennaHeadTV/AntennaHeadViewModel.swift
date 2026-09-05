@@ -22,6 +22,13 @@ final class AntennaHeadViewModel {
     private(set) var devices: [DeviceSummary] = []
     private(set) var recordings: [RecordingSummary] = []
     private(set) var controlBoothStatus: ControlBoothStatus?
+    private(set) var captions: CaptionsStatus?
+    /// The sidebar's current selection — lives here rather than as
+    /// `MainScreen`'s own `@State` so every "start listening to X" action
+    /// (tune, scan, device, recording, ControlBooth) can jump the user to
+    /// Now Playing from wherever it's called, not just from within the
+    /// Now Playing screen itself.
+    var selectedSection: SidebarSection = .nowPlaying
     /// True while the shared player is pointed at a recording instead of the
     /// live stream — drives the "Now Playing" detail's own status line, since
     /// `nowPlaying` (server-side tuning state) doesn't know about local
@@ -75,6 +82,7 @@ final class AntennaHeadViewModel {
         devices = []
         recordings = []
         controlBoothStatus = nil
+        captions = nil
     }
 
     func refreshNowPlaying() async {
@@ -85,10 +93,19 @@ final class AntennaHeadViewModel {
         }
     }
 
+    func refreshCaptions() async {
+        do {
+            captions = try await client.captions()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func tune(_ frequency: FrequencySummary) async {
         do {
             nowPlaying = try await client.tune(frequencyID: frequency.id)
             resumeLivePlayback()
+            selectedSection = .nowPlaying
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -98,6 +115,7 @@ final class AntennaHeadViewModel {
         do {
             nowPlaying = try await client.startScan(categoryID: category.id)
             resumeLivePlayback()
+            selectedSection = .nowPlaying
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -133,6 +151,7 @@ final class AntennaHeadViewModel {
         do {
             nowPlaying = try await client.startDevice(name: device.name)
             resumeLivePlayback()
+            selectedSection = .nowPlaying
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -163,6 +182,7 @@ final class AntennaHeadViewModel {
         player.play()
         isPlayingRecording = true
         nowPlayingRecordingName = recording.fileName
+        selectedSection = .nowPlaying
     }
 
     // MARK: ControlBooth
@@ -187,6 +207,7 @@ final class AntennaHeadViewModel {
         do {
             nowPlaying = try await client.startControlBoothPipeline(named: name)
             resumeLivePlayback()
+            selectedSection = .nowPlaying
         } catch {
             errorMessage = error.localizedDescription
         }

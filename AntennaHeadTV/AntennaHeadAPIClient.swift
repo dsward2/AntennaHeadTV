@@ -133,4 +133,8 @@ actor AntennaHeadAPIClient {
     func stopControlBooth() async throws -> NowPlayingStatus {
         try await post(APIEndpoint.controlBoothStop)
     }
+
+    func captions() async throws -> CaptionsStatus {
+        try await get(APIEndpoint.captions)
+    }
 }
