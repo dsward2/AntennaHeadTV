@@ -23,6 +23,7 @@ final class AntennaHeadViewModel {
     private(set) var recordings: [RecordingSummary] = []
     private(set) var controlBoothStatus: ControlBoothStatus?
     private(set) var captions: CaptionsStatus?
+    private(set) var spatialAudio: SpatialAudioStatus?
     /// The sidebar's current selection — lives here rather than as
     /// `MainScreen`'s own `@State` so every "start listening to X" action
     /// (tune, scan, device, recording, ControlBooth) can jump the user to
@@ -83,6 +84,7 @@ final class AntennaHeadViewModel {
         recordings = []
         controlBoothStatus = nil
         captions = nil
+        spatialAudio = nil
     }
 
     func refreshNowPlaying() async {
@@ -96,6 +98,25 @@ final class AntennaHeadViewModel {
     func refreshCaptions() async {
         do {
             captions = try await client.captions()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func refreshSpatialAudio() async {
+        do {
+            spatialAudio = try await client.spatialAudio()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Any subset of the three may be provided. Updates local state from the
+    /// server's response rather than assuming the request applied exactly as
+    /// sent — same reasoning `tune`/`startScan`/etc. already follow here.
+    func setSpatialAudio(azimuth: Double? = nil, elevation: Double? = nil, distance: Double? = nil) async {
+        do {
+            spatialAudio = try await client.setSpatialAudio(azimuth: azimuth, elevation: elevation, distance: distance)
         } catch {
             errorMessage = error.localizedDescription
         }

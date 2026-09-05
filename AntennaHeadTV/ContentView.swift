@@ -154,6 +154,7 @@ private struct MainScreen: View {
 private enum NowPlayingTab: String, CaseIterable, Identifiable {
     case status = "Status"
     case captions = "Captions"
+    case spatialAudio = "Spatial Audio"
 
     var id: String { rawValue }
 }
@@ -191,6 +192,7 @@ private struct NowPlayingDetail: View {
             switch tab {
             case .status: statusContent
             case .captions: CaptionsSubview(viewModel: viewModel)
+            case .spatialAudio: SpatialPositionSubview(viewModel: viewModel)
             }
 
             Button("Stop") {
@@ -289,6 +291,86 @@ private struct CaptionsSubview: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 300, alignment: .topLeading)
+    }
+}
+
+/// Live spatial-audio position (`PCMDistanceGain`/`PCMBinauralPanner`'s
+/// azimuth, elevation, and distance) — a third Now Playing tab alongside
+/// Status and Captions, same reasoning as Captions' own doc comment: this
+/// only means anything while something's playing.
+///
+/// Plain +/- buttons, not a slider or a stepper: SwiftUI's `Slider` *and*
+/// `Stepper` are both unavailable on tvOS entirely (confirmed by the
+/// compiler, not assumed — both were tried first and both failed to build)
+/// — a focus-navigable button pair is the actual available primitive here,
+/// the same one every other action in this file already uses.
+///
+/// Local `@State`, seeded once from the server's current values via `.task`
+/// rather than kept in sync afterward — the same design AntennaHead's own
+/// web-UI sliders and its (unreachable) SwiftUI SpatialPositionView both
+/// settled on: a control a background poll could silently reset mid-adjust
+/// is worse than one that's simply optimistic about its own state. Each
+/// press sends its own request immediately — a discrete tap isn't a
+/// continuous gesture to batch, unlike a slider drag.
+private struct SpatialPositionSubview: View {
+    var viewModel: AntennaHeadViewModel
+    @State private var azimuth: Double = 0
+    @State private var elevation: Double = 0
+    @State private var distance: Double = 1.0
+    @State private var loaded = false
+
+    var body: some View {
+        Group {
+            if !loaded {
+                ProgressView()
+            } else if viewModel.spatialAudio?.enabled != true {
+                ContentUnavailableView("Spatial Audio Off", systemImage: "hifispeaker.and.homepod",
+                                       description: Text("Turn on spatial audio in AntennaHead under Configuration \u{203A} Spatial Audio, then start a station."))
+            } else {
+                VStack(alignment: .leading, spacing: 32) {
+                    positionRow("Azimuth", value: $azimuth, range: -180...180, step: 5, format: "%.0f\u{00B0}") {
+                        Task { await viewModel.setSpatialAudio(azimuth: azimuth) }
+                    }
+                    positionRow("Elevation", value: $elevation, range: -90...90, step: 5, format: "%.0f\u{00B0}") {
+                        Task { await viewModel.setSpatialAudio(elevation: elevation) }
+                    }
+                    positionRow("Distance", value: $distance, range: 0.1...4, step: 0.1, format: "%.2f") {
+                        Task { await viewModel.setSpatialAudio(distance: distance) }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 300, alignment: .topLeading)
+        .task {
+            await viewModel.refreshSpatialAudio()
+            if let status = viewModel.spatialAudio {
+                azimuth = status.azimuth
+                elevation = status.elevation
+                distance = status.distance
+            }
+            loaded = true
+        }
+    }
+
+    private func positionRow(_ label: String, value: Binding<Double>, range: ClosedRange<Double>,
+                             step: Double, format: String, onCommit: @escaping () -> Void) -> some View {
+        HStack(spacing: 24) {
+            Text("\(label): \(String(format: format, value.wrappedValue))")
+                .font(.headline)
+                .frame(minWidth: 240, alignment: .leading)
+            Button {
+                value.wrappedValue = max(range.lowerBound, value.wrappedValue - step)
+                onCommit()
+            } label: {
+                Image(systemName: "minus.circle")
+            }
+            Button {
+                value.wrappedValue = min(range.upperBound, value.wrappedValue + step)
+                onCommit()
+            } label: {
+                Image(systemName: "plus.circle")
+            }
+        }
     }
 }
 

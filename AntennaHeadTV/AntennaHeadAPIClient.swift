@@ -137,4 +137,16 @@ actor AntennaHeadAPIClient {
     func captions() async throws -> CaptionsStatus {
         try await get(APIEndpoint.captions)
     }
+
+    func spatialAudio() async throws -> SpatialAudioStatus {
+        try await get(APIEndpoint.spatialAudio)
+    }
+
+    /// Any subset of the three may be provided — see `SetSpatialAudioRequest`'s
+    /// doc comment on why `nil` means "leave this alone", not "set to zero".
+    @discardableResult
+    func setSpatialAudio(azimuth: Double? = nil, elevation: Double? = nil, distance: Double? = nil) async throws -> SpatialAudioStatus {
+        try await post(APIEndpoint.setSpatialAudio,
+                       body: SetSpatialAudioRequest(azimuth: azimuth, elevation: elevation, distance: distance))
+    }
 }
