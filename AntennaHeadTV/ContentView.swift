@@ -182,34 +182,22 @@ private struct NowPlayingDetail: View {
     @State private var tab: NowPlayingTab = .status
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 16) {
             if let message = viewModel.errorMessage {
                 Text(message)
                     .foregroundStyle(.red)
             }
 
-            nowPlayingHeader
+            controlBar
 
-            HStack(spacing: 24) {
-                ForEach(NowPlayingTab.allCases) { candidate in
-                    Button(candidate.rawValue) {
-                        tab = candidate
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(candidate == tab ? .accentColor : nil)
+            Group {
+                switch tab {
+                case .status: statusDetailContent
+                case .captions: CaptionsSubview(viewModel: viewModel)
+                case .spatialAudio: SpatialPositionSubview(viewModel: viewModel)
                 }
             }
-
-            switch tab {
-            case .status: statusDetailContent
-            case .captions: CaptionsSubview(viewModel: viewModel)
-            case .spatialAudio: SpatialPositionSubview(viewModel: viewModel)
-            }
-
-            Button("Stop") {
-                Task { await viewModel.stop() }
-            }
-            .disabled(!viewModel.isPlayingRecording && viewModel.nowPlaying?.taskMode == .stopped)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .padding(60)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -233,23 +221,53 @@ private struct NowPlayingDetail: View {
         }
     }
 
-    /// Station name (or recording name) + frequency — shown above the
-    /// Status/Captions/Spatial Audio tab switcher, not inside just one of
-    /// those tabs' own content, so it stays on screen no matter which is
-    /// selected. Previously this lived entirely inside `statusContent` and
-    /// disappeared the moment you switched to Captions or Spatial Audio.
+    /// Station name (or recording name) + frequency, the Status/Captions/
+    /// Spatial Audio tab switcher, and Stop, all in one compact row instead
+    /// of stacked as separate lines — frees up the vertical space below for
+    /// whichever tab's content is showing (most visibly the Captions
+    /// transcript, which now gets most of the screen instead of a fixed
+    /// minimum height). The name/frequency stays visible no matter which tab
+    /// is selected, same as before this consolidation.
+    private var controlBar: some View {
+        HStack(alignment: .center, spacing: 32) {
+            nowPlayingHeader
+                .layoutPriority(1)
+
+            Spacer(minLength: 24)
+
+            HStack(spacing: 16) {
+                ForEach(NowPlayingTab.allCases) { candidate in
+                    Button(candidate.rawValue) {
+                        tab = candidate
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(candidate == tab ? .accentColor : nil)
+                }
+            }
+
+            Button("Stop") {
+                Task { await viewModel.stop() }
+            }
+            .disabled(!viewModel.isPlayingRecording && viewModel.nowPlaying?.taskMode == .stopped)
+        }
+    }
+
     @ViewBuilder
     private var nowPlayingHeader: some View {
         if viewModel.isPlayingRecording {
             Text(viewModel.nowPlayingRecordingName ?? "Recording")
-                .font(.title)
+                .font(.title2)
+                .lineLimit(1)
         } else if let status = viewModel.nowPlaying {
-            VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
                 Text(status.stationName)
-                    .font(.title)
+                    .font(.title2)
+                    .lineLimit(1)
                 if let frequency = status.formattedFrequency {
                     Text(frequency)
+                        .font(.callout)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
             }
         } else {
@@ -314,7 +332,11 @@ private struct CaptionsSubview: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 300, alignment: .topLeading)
+        // Fills whatever vertical space NowPlayingDetail's now-compact
+        // controlBar leaves free, rather than the old fixed minHeight —
+        // this is the whole point of the row-consolidation above: more
+        // room for the transcript itself.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         // Reading captions involves no remote presses — exactly the kind of
         // idle tvOS otherwise (reasonably) reads as "nobody's watching" and
         // starts the screensaver over. Scoped to just this view's lifetime
@@ -372,7 +394,7 @@ private struct SpatialPositionSubview: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 300, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .task {
             await viewModel.refreshSpatialAudio()
             if let status = viewModel.spatialAudio {
