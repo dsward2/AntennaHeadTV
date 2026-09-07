@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: xcodebuild build
+    runs-on: macos-26
+
+    steps:
+      - name: Check out AntennaHeadTV
+        uses: actions/checkout@v4
+        with:
+          path: AntennaHeadTV
+
+      # AntennaHeadTV.xcodeproj references ../AntennaHeadAPI as a local Swift
+      # package, so the sibling repo has to sit next to this one on disk.
+      # Needs a token that can read the private sibling repo: add a fine-grained
+      # PAT with "Contents: read" on dsward2/AntennaHeadAPI as the repo secret
+      # CI_SIBLING_TOKEN.
+      - name: Check out AntennaHeadAPI (local package)
+        uses: actions/checkout@v4
+        with:
+          repository: dsward2/AntennaHeadAPI
+          ref: main
+          path: AntennaHeadAPI
+          token: ${{ secrets.CI_SIBLING_TOKEN || github.token }}
+
+      - name: Select newest Xcode
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+          xcodebuild -version
+
+      - name: Resolve package dependencies
+        working-directory: AntennaHeadTV
+        run: xcodebuild -resolvePackageDependencies -project AntennaHeadTV.xcodeproj -scheme AntennaHeadTV
+
+      - name: Build
+        working-directory: AntennaHeadTV
+        run: |
+          xcodebuild build \
+            -project AntennaHeadTV.xcodeproj \
+            -scheme AntennaHeadTV \
+            -configuration Debug \
+            -destination 'generic/platform=tvOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO
