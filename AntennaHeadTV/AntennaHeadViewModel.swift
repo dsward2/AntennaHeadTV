@@ -163,18 +163,16 @@ final class AntennaHeadViewModel {
         }
     }
 
-    /// Stops the tuning pipeline server-side, then pauses local playback too
-    /// — LiveAudioServer keeps streaming filler silence after the pipeline
-    /// tears down (same reasoning as AntennaHead's own Status tab "Stop
-    /// Pipeline" button, `AntennaHead/Views/StatusView.swift`), so without
-    /// this the player would keep "playing" silence instead of actually
-    /// stopping. Pauses regardless of whether a recording or the live stream
-    /// is currently loaded — Stop always means "go quiet".
+    /// Stops the tuning pipeline server-side and keeps listening: the server
+    /// falls back to its filler (when enabled), so local playback continues
+    /// on the live stream rather than pausing — the same as AntennaHead's
+    /// web Now Playing page and native Status tab. If a recording was
+    /// loaded, this switches back to the live stream so the filler is heard.
     func stop() async {
         do {
             nowPlaying = try await client.stop()
             errorMessage = nil
-            player?.pause()
+            resumeLivePlayback()
         } catch {
             report(error)
         }
@@ -262,11 +260,13 @@ final class AntennaHeadViewModel {
         }
     }
 
+    /// Same as `stop()`: the server's ControlBooth stop also falls back to the
+    /// filler, so playback carries on into it.
     func stopControlBooth() async {
         do {
             nowPlaying = try await client.stopControlBooth()
             errorMessage = nil
-            player?.pause()
+            resumeLivePlayback()
         } catch {
             report(error)
         }
@@ -302,7 +302,7 @@ final class AntennaHeadViewModel {
 
     /// Switches the shared player back to the live stream if a recording was
     /// playing, then resumes — called from every "start listening to X"
-    /// action (tune, scan, device, ControlBooth), matching the web
+    /// action (tune, scan, device, ControlBooth) and from Stop, matching the web
     /// UI's `startAudioPlayer()` restoring `liveStreamAudioSrc` after
     /// fast-download playback (see `AntennaHead/Web/index.html`).
     private func resumeLivePlayback() {
