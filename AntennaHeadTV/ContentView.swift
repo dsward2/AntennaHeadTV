@@ -749,53 +749,58 @@ private struct ControlBoothDetail: View {
     }
 }
 
-/// Listen to Gqrx: launch Gqrx on the Mac if it isn't running, then listen
-/// to its UDP audio. Tuning Gqrx itself (frequency, mode, gains, squelch,
-/// bookmarks) stays on the Mac or AntennaHead's web page.
+/// Listen to Gqrx: launch Gqrx on the Mac if it isn't running, listen to its
+/// UDP audio, or pick one of Gqrx's own bookmarks to tune to and play. The
+/// rest of Gqrx's remote control (frequency, mode, gains, squelch) stays on
+/// the Mac or AntennaHead's web page.
 private struct GqrxDetail: View {
     var viewModel: AntennaHeadViewModel
 
     var body: some View {
         Group {
             if let status = viewModel.gqrxStatus {
-                VStack(alignment: .leading, spacing: 32) {
-                    if status.isRunning {
-                        Label("Gqrx is running on the Mac.", systemImage: "checkmark.circle")
-                    } else {
-                        Text("Gqrx isn't running.")
-                            .foregroundStyle(.secondary)
-                        Button {
-                            Task {
-                                await viewModel.launchGqrx()
-                                // Launching doesn't wait for Gqrx to finish
-                                // starting, so check again shortly.
-                                try? await Task.sleep(for: .seconds(3))
-                                await viewModel.loadGqrxStatus()
+                VStack(alignment: .leading, spacing: 24) {
+                    HStack(spacing: 24) {
+                        if status.isRunning {
+                            Button {
+                                Task { await viewModel.startGqrx(channels: 2) }
+                            } label: {
+                                Label("Listen in Stereo", systemImage: "headphones")
                             }
-                        } label: {
-                            Label("Launch Gqrx and Listen", systemImage: "play.fill")
+                            Button {
+                                Task { await viewModel.startGqrx(channels: 1) }
+                            } label: {
+                                Label("Listen in Mono", systemImage: "speaker.wave.1")
+                            }
+                        } else {
+                            Button {
+                                Task {
+                                    await viewModel.launchGqrx()
+                                    // Launching doesn't wait for Gqrx to finish
+                                    // starting, so check again shortly.
+                                    try? await Task.sleep(for: .seconds(3))
+                                    await reload()
+                                }
+                            } label: {
+                                Label("Launch Gqrx and Listen", systemImage: "play.fill")
+                            }
+                            Text("Gqrx isn't running.")
+                                .foregroundStyle(.secondary)
                         }
                     }
+                    .lineLimit(1)
 
-                    Text("Set Gqrx's Audio \u{25B8} UDP output to port \(String(status.receivePort)), then choose Listen. Pick Mono if Gqrx's Audio \u{25B8} Stereo box is unchecked.")
+                    Text("Set Gqrx's Audio \u{25B8} UDP output to port \(String(status.receivePort)). Pick Mono if Gqrx's Audio \u{25B8} Stereo box is unchecked.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: 1000, alignment: .leading)
 
-                    HStack(spacing: 24) {
-                        Button {
-                            Task { await viewModel.startGqrx(channels: 2) }
-                        } label: {
-                            Label("Listen in Stereo", systemImage: "headphones")
-                        }
-                        Button {
-                            Task { await viewModel.startGqrx(channels: 1) }
-                        } label: {
-                            Label("Listen in Mono", systemImage: "speaker.wave.1")
-                        }
+                    if status.isRunning {
+                        bookmarks
                     }
                 }
-                .padding(60)
+                .padding(.horizontal, 60)
+                .padding(.top, 20)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             } else {
                 ProgressView()
@@ -805,10 +810,60 @@ private struct GqrxDetail: View {
         .navigationTitle("Listen to Gqrx")
         .toolbar {
             Button("Refresh") {
-                Task { await viewModel.loadGqrxStatus() }
+                Task { await reload() }
             }
         }
-        .task { await viewModel.loadGqrxStatus() }
+        .task { await reload() }
+    }
+
+    /// Gqrx's bookmarks, each a button that tunes to it and plays. Bookmarks
+    /// can only be read from a running Gqrx, so this is hidden otherwise.
+    @ViewBuilder
+    private var bookmarks: some View {
+        Text("Bookmarks")
+            .font(.headline)
+        if let bookmarks = viewModel.gqrxBookmarks {
+            if bookmarks.isEmpty {
+                Text("Gqrx has no bookmarks.")
+                    .foregroundStyle(.secondary)
+            } else {
+                List(bookmarks) { bookmark in
+                    Button {
+                        Task { await viewModel.playGqrxBookmark(bookmark) }
+                    } label: {
+                        HStack(spacing: 24) {
+                            Text(bookmark.name.isEmpty ? "Untitled" : bookmark.name)
+                                .lineLimit(1)
+                            Spacer()
+                            Text(bookmark.modulation)
+                                .foregroundStyle(.secondary)
+                            Text(Self.megahertz(bookmark.frequencyHz))
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                                .frame(minWidth: 220, alignment: .trailing)
+                        }
+                    }
+                }
+            }
+        } else if let message = viewModel.gqrxBookmarksMessage {
+            Text(message)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: 1000, alignment: .leading)
+        } else {
+            ProgressView()
+        }
+    }
+
+    private func reload() async {
+        await viewModel.loadGqrxStatus()
+        if viewModel.gqrxStatus?.isRunning == true {
+            await viewModel.loadGqrxBookmarks()
+        }
+    }
+
+    /// Same format as the web page's bookmark list, e.g. "162.5500 MHz".
+    private static func megahertz(_ hz: Int64) -> String {
+        String(format: "%.4f MHz", Double(hz) / 1_000_000)
     }
 }
 

@@ -26,6 +26,11 @@ final class AntennaHeadViewModel {
     private(set) var captions: CaptionsStatus?
     private(set) var spatialAudio: SpatialAudioStatus?
     private(set) var gqrxStatus: GqrxStatus?
+    private(set) var gqrxBookmarks: [GqrxBookmarkSummary]?
+    /// Why `gqrxBookmarks` couldn't be loaded (Gqrx's remote control off, or
+    /// a Gqrx build without bookmark support). Shown in place of the list
+    /// rather than in `errorMessage`, since it's a state, not a failed action.
+    private(set) var gqrxBookmarksMessage: String?
     private(set) var audioFiles: FolderListing?
     private(set) var textToSpeechFiles: FolderListing?
     private(set) var rssFeeds: [RSSFeedSummary]?
@@ -102,6 +107,8 @@ final class AntennaHeadViewModel {
         captions = nil
         spatialAudio = nil
         gqrxStatus = nil
+        gqrxBookmarks = nil
+        gqrxBookmarksMessage = nil
         audioFiles = nil
         textToSpeechFiles = nil
         rssFeeds = nil
@@ -313,6 +320,23 @@ final class AntennaHeadViewModel {
         } catch {
             report(error)
         }
+    }
+
+    func loadGqrxBookmarks() async {
+        do {
+            gqrxBookmarks = try await client.gqrxBookmarks()
+            gqrxBookmarksMessage = nil
+        } catch {
+            if error is CancellationError { return }
+            if let urlError = error as? URLError, urlError.code == .cancelled { return }
+            gqrxBookmarks = nil
+            gqrxBookmarksMessage = error.localizedDescription
+        }
+    }
+
+    /// Tunes Gqrx to a bookmark, starting to listen to Gqrx first if needed.
+    func playGqrxBookmark(_ bookmark: GqrxBookmarkSummary, channels: Int = 2) async {
+        await startSource { try await $0.playGqrxBookmark(frequencyHz: bookmark.frequencyHz, channels: channels) }
     }
 
     func startGqrx(channels: Int) async {
