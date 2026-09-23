@@ -23,19 +23,24 @@ Simulator (Xcode's own toolchain, no `xcodegen` or other generator — the
 `.xcodeproj` is hand-authored, mirroring `AntennaHead.xcodeproj`'s own
 conventions).
 
-**Layout:** a master-detail `NavigationSplitView` — a sidebar of sections on
-the left (Now Playing, Favorites, Categories, Devices, Recordings,
-ControlBooth), each section's content filling the large detail area
-on the right. Replaced the original single-screen layout once the feature
-set grew past what one screen could hold.
+**Layout:** a persistent Now Playing strip across the top (station,
+frequency, status, plus Captions, Spatial Audio, and Stop), with a fixed
+sidebar of sections on the left and the selected section filling the rest.
+The sidebar groups Radio (Favorites, Categories), Live Sources (Devices,
+Listen to Gqrx, AirPlay Receiver, ControlBooth), and Files & Speech
+(Recordings, Play Audio Files, Text to Speech, Speak RSS Headlines).
 
-**tvOS gotcha hit and fixed:** the sidebar first shipped as
-`List(data, selection:)` with plain `Label` rows — the detail pane never
-changed no matter which section was highlighted, because that
-selection-commit binding doesn't reliably fire from a Siri Remote press on
-tvOS (it's more of an iPadOS/macOS pattern). Fixed by setting `selection`
-directly from a `Button` action per row instead, matching how every other
-list in this app already works.
+**tvOS gotchas hit and fixed:**
+
+- The sidebar is a plain fixed-width column, not `NavigationSplitView`:
+  that sidebar resizes and slides as Siri Remote focus moves between
+  columns. A top `TabView` avoided that, but ran out of room as sources
+  were added.
+- Sidebar rows are `Button`s that set the selection, not
+  `List(data, selection:)`: that selection binding doesn't reliably fire
+  from a Siri Remote press on tvOS.
+- Buttons inside a `List` section header aren't focusable, so Select All /
+  Select None sit in their own row above the list.
 
 **What's here:**
 
@@ -43,8 +48,8 @@ list in this app already works.
 |---|---|
 | `AntennaHeadTVApp.swift` | App entry point. |
 | `AntennaHeadAPIClient.swift` | Thin `URLSession` wrapper over `AntennaHeadAPI`'s types/endpoints. Plain HTTP, no auth yet — see below. |
-| `AntennaHeadViewModel.swift` | `@Observable` state for the connection and every section (now-playing, favorites, categories, devices, recordings, ControlBooth status), loaded lazily per section rather than all upfront. Also owns the shared `AVPlayer`: normally pointed at AntennaHead's HLS mount (`/hls/index.m3u8`, same host:port as the JSON API, since the live stream reflects whatever's currently tuned rather than being per-frequency), but swappable to a recording's Range-capable download URL for real seek support, then back to live the next time a listen action runs — mirrors the web UI's own live/download-mode `<audio>` element switching (`Web/index.html`). |
-| `ContentView.swift` | `ConnectScreen` (manual host entry) → `MainScreen`, a `NavigationSplitView` sidebar/detail pair, one detail view per section. |
+| `AntennaHeadViewModel.swift` | `@Observable` state for the connection and every section (now-playing, favorites, categories, devices, recordings, ControlBooth/AirPlay status, Gqrx status, the Play Audio Files and Text to Speech folder listings, RSS feeds), loaded lazily per section rather than all upfront. Also owns the shared `AVPlayer`: normally pointed at AntennaHead's HLS mount (`/hls/index.m3u8`, same host:port as the JSON API, since the live stream reflects whatever's currently tuned rather than being per-frequency), but swappable to a recording's Range-capable download URL for real seek support, then back to live the next time a listen action runs — mirrors the web UI's own live/download-mode `<audio>` element switching (`Web/index.html`). |
+| `ContentView.swift` | `ConnectScreen` (Bonjour list + manual host entry) → `MainScreen`: the Now Playing strip, the sidebar, and one detail view per section. |
 
 **Deliberately not built yet** (see the feasibility study for the full list):
 

@@ -14,6 +14,8 @@ actor AntennaHeadAPIClient {
     enum ClientError: Error, LocalizedError {
         case invalidHost
         case badResponse(Int)
+        /// The server's own `{"error": ...}` message (`APIError`).
+        case server(String)
         case decoding(Error)
 
         var errorDescription: String? {
@@ -22,6 +24,8 @@ actor AntennaHeadAPIClient {
                 return "Enter a valid host, e.g. 192.168.1.23:8090."
             case .badResponse(let code):
                 return "The server returned HTTP \(code)."
+            case .server(let message):
+                return message
             case .decoding(let error):
                 return "Couldn't understand the server's response: \(error.localizedDescription)"
             }
@@ -46,6 +50,9 @@ actor AntennaHeadAPIClient {
     private func perform<T: Decodable>(_ request: URLRequest) async throws -> T {
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            if let apiError = try? JSONDecoder().decode(APIError.self, from: data) {
+                throw ClientError.server(apiError.error)
+            }
             throw ClientError.badResponse((response as? HTTPURLResponse)?.statusCode ?? -1)
         }
         let decoder = JSONDecoder()
@@ -148,5 +155,60 @@ actor AntennaHeadAPIClient {
     func setSpatialAudio(azimuth: Double? = nil, elevation: Double? = nil, distance: Double? = nil) async throws -> SpatialAudioStatus {
         try await post(APIEndpoint.setSpatialAudio,
                        body: SetSpatialAudioRequest(azimuth: azimuth, elevation: elevation, distance: distance))
+    }
+
+    // MARK: Gqrx, Play Audio Files, Text to Speech, Speak RSS Headlines
+
+    func gqrxStatus() async throws -> GqrxStatus {
+        try await get(APIEndpoint.gqrxStatus)
+    }
+
+    @discardableResult
+    func launchGqrx() async throws -> GqrxStatus {
+        try await post(APIEndpoint.gqrxLaunch)
+    }
+
+    @discardableResult
+    func startGqrx(channels: Int) async throws -> NowPlayingStatus {
+        try await post(APIEndpoint.gqrxStart, body: StartGqrxRequest(channels: channels))
+    }
+
+    func audioFiles() async throws -> FolderListing {
+        try await get(APIEndpoint.audioFiles)
+    }
+
+    @discardableResult
+    func startAudioFiles(_ request: StartAudioFilesRequest) async throws -> NowPlayingStatus {
+        try await post(APIEndpoint.audioFilesStart, body: request)
+    }
+
+    func textToSpeechFiles() async throws -> FolderListing {
+        try await get(APIEndpoint.textToSpeech)
+    }
+
+    @discardableResult
+    func startTextToSpeech(_ request: StartTextToSpeechRequest) async throws -> NowPlayingStatus {
+        try await post(APIEndpoint.textToSpeechStart, body: request)
+    }
+
+    func rssFeeds() async throws -> [RSSFeedSummary] {
+        try await get(APIEndpoint.rssFeeds)
+    }
+
+    @discardableResult
+    func startRSSHeadlines(_ request: StartRSSHeadlinesRequest) async throws -> NowPlayingStatus {
+        try await post(APIEndpoint.rssHeadlinesStart, body: request)
+    }
+
+    // MARK: AirPlay Receiver (via ControlBooth)
+
+    @discardableResult
+    func startAirPlay() async throws -> NowPlayingStatus {
+        try await post(APIEndpoint.controlBoothAirPlayStart)
+    }
+
+    @discardableResult
+    func stopAirPlay() async throws -> NowPlayingStatus {
+        try await post(APIEndpoint.controlBoothAirPlayStop)
     }
 }

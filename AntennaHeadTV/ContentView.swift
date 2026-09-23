@@ -2,9 +2,9 @@ import AntennaHeadAPI
 import SwiftUI
 import UIKit
 
-/// Server picker (Bonjour discovery + manual host entry) → a master-detail
-/// layout: a sidebar of sections on the left, each section's content filling
-/// the right. See `AntennaHeadAPI`'s README and the feasibility study for
+/// Server picker (Bonjour discovery + manual host entry) → `MainScreen`: a
+/// Now Playing strip across the top, a sidebar of sections on the left, and
+/// the selected section's content filling the rest. See `AntennaHeadAPI`'s README and the feasibility study for
 /// what's still deferred (Tuner, Settings, Custom Tasks, HTTPS/auth,
 /// push-based status).
 struct ContentView: View {
@@ -163,230 +163,294 @@ private struct ConnectScreen: View {
     }
 }
 
-/// The sidebar's sections. Deliberately a subset of the web UI's own top
-/// menu (Favorites, Categories, Tuner, Recordings, Devices, ControlBooth,
-/// Settings, Info) — Tuner (manual frequency entry) and Settings
-/// are form-heavy admin surfaces that fit a keyboard/mouse better than a
-/// Siri Remote, and are left for a later pass rather than forced in here.
-/// Not `private` — `AntennaHeadViewModel` owns `selectedSection` (so every
-/// "start listening to X" action can jump the user to Now Playing from
-/// wherever it's called) and needs the type visible too.
-enum SidebarSection: String, CaseIterable, Identifiable {
-    case nowPlaying = "Now Playing"
+/// Everything the detail area can show: the sidebar's sections, plus
+/// Captions and Spatial Audio, which are opened from the Now Playing strip
+/// instead because they only mean anything while something is playing.
+///
+/// A subset of the web UI's own menus — Tuner (manual frequency entry),
+/// Settings, and the editing pages are form-heavy admin surfaces that fit a
+/// keyboard/mouse better than a Siri Remote, and are left for a later pass.
+enum Section: String, Identifiable {
+    case captions = "Captions"
+    case spatialAudio = "Spatial Audio"
     case favorites = "Favorites"
     case categories = "Categories"
     case devices = "Devices"
-    case recordings = "Recordings"
+    case gqrx = "Listen to Gqrx"
+    case airPlay = "AirPlay Receiver"
     case controlBooth = "ControlBooth"
+    case recordings = "Recordings"
+    case audioFiles = "Play Audio Files"
+    case textToSpeech = "Text to Speech"
+    case rssHeadlines = "Speak RSS Headlines"
 
     var id: String { rawValue }
+
+    /// The sidebar's rows, in groups. Captions and Spatial Audio aren't here
+    /// (see above).
+    static let sidebarGroups: [(title: String, sections: [Section])] = [
+        ("Radio", [.favorites, .categories]),
+        ("Live Sources", [.devices, .gqrx, .airPlay, .controlBooth]),
+        ("Files & Speech", [.recordings, .audioFiles, .textToSpeech, .rssHeadlines]),
+    ]
 
     var systemImage: String {
         switch self {
-        case .nowPlaying: "waveform"
+        case .captions: "captions.bubble"
+        case .spatialAudio: "hifispeaker.and.homepod"
         case .favorites: "star.fill"
         case .categories: "square.stack.3d.up.fill"
         case .devices: "mic.fill"
-        case .recordings: "recordingtape"
+        case .gqrx: "dial.medium"
+        case .airPlay: "airplayaudio"
         case .controlBooth: "slider.horizontal.3"
+        case .recordings: "recordingtape"
+        case .audioFiles: "music.note.list"
+        case .textToSpeech: "text.bubble"
+        case .rssHeadlines: "dot.radiowaves.up.forward"
         }
     }
 }
 
-/// Top-level navigation as a persistent top tab bar, not `NavigationSplitView`'s
-/// sidebar: that sidebar column dynamically resizes/slides based on which
-/// column currently has Siri Remote focus (standard tvOS `NavigationSplitView`
-/// behavior), which reads as distracting motion rather than stable chrome —
-/// reported directly against this screen. `TabView` on tvOS renders as a
-/// fixed top tab bar that doesn't move or hide based on focus, and is the
-/// platform's own idiomatic top-level navigation (matching system apps like
-/// Music and TV), not a workaround standing in for a sidebar.
+/// A persistent Now Playing strip across the top, with a fixed sidebar and a
+/// detail area below it.
 ///
-/// Each tab wraps its content in its own `NavigationStack` so that content's
-/// `.navigationTitle` (set independently by `NowPlayingDetail`,
-/// `FavoritesDetail`, etc.) still renders, and carries its own "Disconnect"
-/// toolbar item — there's no single sidebar column left to hang one
-/// modifier on for all of them.
+/// The sidebar is a plain fixed-width column, not `NavigationSplitView`: that
+/// sidebar resizes and slides as Siri Remote focus moves between columns
+/// (standard tvOS behavior), which reads as distracting motion rather than
+/// stable chrome. An earlier version used a top `TabView` for the same
+/// reason, but it ran out of room once the list of sources grew.
+///
+/// Selecting a sidebar row takes a click, rather than following focus the
+/// way the TV app's sidebar does, so scrolling past ControlBooth doesn't fire
+/// an AppleEvents round trip to it just to render a page nobody stopped on.
 private struct MainScreen: View {
     var viewModel: AntennaHeadViewModel
+    @State private var selection: Section = .favorites
+    @Namespace private var focusNamespace
 
     var body: some View {
-        TabView(selection: Binding(
-            get: { viewModel.selectedSection },
-            set: { viewModel.selectedSection = $0 }
-        )) {
-            ForEach(SidebarSection.allCases) { section in
-                NavigationStack {
-                    detail(for: section)
-                        .toolbar {
-                            ToolbarItem {
-                                Button("Disconnect") {
-                                    viewModel.disconnect()
-                                }
-                            }
-                        }
+        VStack(spacing: 0) {
+            NowPlayingStrip(viewModel: viewModel, selection: $selection)
+            Divider()
+            HStack(spacing: 0) {
+                sidebar
+                    // Room for the focused row's enlarged highlight, which
+                    // would otherwise spill over the divider.
+                    .padding(.trailing, 30)
+                    .frame(width: 500)
+                    .focusSection()
+                Divider()
+                VStack(alignment: .leading, spacing: 0) {
+                    if let message = viewModel.errorMessage {
+                        Text(message)
+                            .foregroundStyle(.red)
+                            .padding(.horizontal, 60)
+                            .padding(.top, 20)
+                    }
+                    NavigationStack {
+                        detail(for: selection)
+                    }
+                    // A fresh stack per section, so one section's toolbar
+                    // and title never linger into the next.
+                    .id(selection)
                 }
-                .tabItem {
-                    Label(section.rawValue, systemImage: section.systemImage)
-                }
-                .tag(section)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .focusSection()
             }
         }
-    }
-
-    @ViewBuilder
-    private func detail(for section: SidebarSection) -> some View {
-        switch section {
-        case .nowPlaying: NowPlayingDetail(viewModel: viewModel)
-        case .favorites: FavoritesDetail(viewModel: viewModel)
-        case .categories: CategoriesDetail(viewModel: viewModel)
-        case .devices: DevicesDetail(viewModel: viewModel)
-        case .recordings: RecordingsDetail(viewModel: viewModel)
-        case .controlBooth: ControlBoothDetail(viewModel: viewModel)
-        }
-    }
-}
-
-/// Which of Now Playing's two sub-views is showing. Kept as local `@State`
-/// (not on the view model) — unlike `SidebarSection`, nothing outside this
-/// screen needs to switch it.
-private enum NowPlayingTab: String, CaseIterable, Identifiable {
-    case status = "Status"
-    case captions = "Captions"
-    case spatialAudio = "Spatial Audio"
-
-    var id: String { rawValue }
-}
-
-/// Now-playing status (live stream or a recording, see
-/// `AntennaHeadViewModel.isPlayingRecording`) + Stop, with Live Captions
-/// (mirrors the web UI's `captions.html`) as a second tab rather than its own
-/// sidebar entry — captions only mean anything while something's playing, so
-/// they belong alongside Now Playing rather than beside it.
-///
-/// Owns the periodic now-playing poll — matches the web UI's own refresh
-/// cadence; a real push channel (SSE/WebSocket) is the flagged follow-up once
-/// there's more than one client depending on this.
-private struct NowPlayingDetail: View {
-    var viewModel: AntennaHeadViewModel
-    @State private var tab: NowPlayingTab = .status
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            if let message = viewModel.errorMessage {
-                Text(message)
-                    .foregroundStyle(.red)
-            }
-
-            controlBar
-
-            Group {
-                switch tab {
-                case .status: statusDetailContent
-                case .captions: CaptionsSubview(viewModel: viewModel)
-                case .spatialAudio: SpatialPositionSubview(viewModel: viewModel)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        }
-        .padding(60)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .navigationTitle("Now Playing")
+        .focusScope(focusNamespace)
+        // Owns the now-playing poll, since the strip is always on screen.
+        // Matches the web UI's own refresh cadence; a real push channel
+        // (SSE/WebSocket) is the flagged follow-up.
         .task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(2))
                 await viewModel.refreshNowPlaying()
             }
         }
-        // Separate from the status poll above and only runs while the
-        // Captions tab is showing — `.task(id:)` cancels and restarts this
-        // loop whenever `tab` changes, so switching away from Captions stops
-        // the extra polling rather than leaving it running unseen.
-        .task(id: tab) {
-            guard tab == .captions else { return }
-            while !Task.isCancelled {
-                await viewModel.refreshCaptions()
-                try? await Task.sleep(for: .seconds(1))
+    }
+
+    /// `List` rows made of `Button`s, not `List(selection:)`: that selection
+    /// binding doesn't reliably fire from a Siri Remote press on tvOS.
+    private var sidebar: some View {
+        List {
+            ForEach(Section.sidebarGroups, id: \.title) { group in
+                SwiftUI.Section(group.title) {
+                    ForEach(group.sections) { section in
+                        sidebarRow(section)
+                    }
+                }
+            }
+            SwiftUI.Section {
+                Button {
+                    viewModel.disconnect()
+                } label: {
+                    Label("Disconnect", systemImage: "xmark.circle")
+                }
             }
         }
     }
 
-    /// Station name (or recording name) + frequency on its own line, then a
-    /// row with the Status/Captions/Spatial Audio tab switcher and Stop.
-    ///
-    /// These four buttons used to share a single horizontal row with the
-    /// header, with `.layoutPriority(1)` on the header and a `Spacer`
-    /// between. A long station name then claimed the whole row: the buttons
-    /// were compressed until their labels wrapped ("Spatial Audio" onto two
-    /// lines), and — worse — until their frames were narrow/offset enough
-    /// that the tvOS focus engine skipped the row entirely, leaving the
-    /// Siri Remote able to move only between the top tab bar and the
-    /// Disconnect toolbar item. Giving the button row its own full-width
-    /// line, a fixed (non-compressing) size, and single-line labels keeps
-    /// every button reliably focusable no matter how long the header is.
-    /// Stop now sits just after the tab switcher rather than pinned far
-    /// right — less Siri Remote travel, and the header no longer competes
-    /// for the space.
-    private var controlBar: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            nowPlayingHeader
+    private func sidebarRow(_ section: Section) -> some View {
+        let isSelected = section == selection
+        return Button {
+            selection = section
+        } label: {
+            HStack {
+                Label(section.rawValue, systemImage: section.systemImage)
+                    .fontWeight(isSelected ? .semibold : .regular)
+                Spacer()
+                if isSelected {
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .lineLimit(1)
+        }
+        .prefersDefaultFocus(isSelected, in: focusNamespace)
+    }
+
+    @ViewBuilder
+    private func detail(for section: Section) -> some View {
+        switch section {
+        case .captions: CaptionsDetail(viewModel: viewModel)
+        case .spatialAudio: SpatialAudioDetail(viewModel: viewModel)
+        case .favorites: FavoritesDetail(viewModel: viewModel)
+        case .categories: CategoriesDetail(viewModel: viewModel)
+        case .devices: DevicesDetail(viewModel: viewModel)
+        case .gqrx: GqrxDetail(viewModel: viewModel)
+        case .airPlay: AirPlayDetail(viewModel: viewModel)
+        case .controlBooth: ControlBoothDetail(viewModel: viewModel)
+        case .recordings: RecordingsDetail(viewModel: viewModel)
+        case .audioFiles:
+            FolderSourceDetail(title: "Play Audio Files", fileKind: "audio files",
+                               listing: viewModel.audioFiles,
+                               load: { await viewModel.loadAudioFiles() },
+                               start: { names, sequence, repeatForever, playlist in
+                                   await viewModel.startAudioFiles(StartAudioFilesRequest(
+                                       fileNames: names, sequence: sequence,
+                                       repeatForever: repeatForever, playlistName: playlist))
+                               })
+        case .textToSpeech:
+            FolderSourceDetail(title: "Text to Speech", fileKind: ".txt files",
+                               listing: viewModel.textToSpeechFiles,
+                               load: { await viewModel.loadTextToSpeechFiles() },
+                               start: { names, sequence, repeatForever, _ in
+                                   await viewModel.startTextToSpeech(StartTextToSpeechRequest(
+                                       fileNames: names, sequence: sequence, repeatForever: repeatForever))
+                               })
+        case .rssHeadlines: RSSHeadlinesDetail(viewModel: viewModel)
+        }
+    }
+}
+
+/// Station (or recording) name, frequency, and status on the left, with
+/// Captions, Spatial Audio, and Stop on the right. The buttons keep their
+/// full size and the text truncates instead: when a long station name used
+/// to squeeze buttons like these, the focus engine skipped them entirely.
+private struct NowPlayingStrip: View {
+    var viewModel: AntennaHeadViewModel
+    @Binding var selection: Section
+
+    var body: some View {
+        HStack(spacing: 32) {
+            Image(systemName: "waveform")
+                .font(.title2)
+                .foregroundStyle(.tint)
+
+            VStack(alignment: .leading, spacing: 6) {
+                header
+                if let detail = statusLine {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 16) {
-                ForEach(NowPlayingTab.allCases) { candidate in
-                    Button(candidate.rawValue) {
-                        tab = candidate
+                ForEach([Section.captions, .spatialAudio]) { section in
+                    Button {
+                        selection = section
+                    } label: {
+                        Label(section.rawValue, systemImage: section.systemImage)
                     }
                     .buttonStyle(.bordered)
-                    .tint(candidate == tab ? .accentColor : nil)
+                    .tint(section == selection ? .accentColor : nil)
                 }
 
-                Button("Stop") {
+                Button {
                     Task { await viewModel.stop() }
+                } label: {
+                    Label("Stop", systemImage: "stop.fill")
                 }
                 .disabled(!viewModel.isPlayingRecording && viewModel.nowPlaying?.taskMode == .stopped)
             }
             .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
+            .fixedSize()
         }
+        .padding(.horizontal, 60)
+        .padding(.vertical, 24)
+        .focusSection()
     }
 
     @ViewBuilder
-    private var nowPlayingHeader: some View {
+    private var header: some View {
         if viewModel.isPlayingRecording {
             Text(viewModel.nowPlayingRecordingName ?? "Recording")
-                .font(.title2)
-                .lineLimit(1)
+                .font(.title3)
         } else if let status = viewModel.nowPlaying {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 Text(status.stationName)
-                    .font(.title2)
-                    .lineLimit(1)
+                    .font(.title3)
                 if let frequency = status.formattedFrequency {
                     Text(frequency)
                         .font(.callout)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
                 }
             }
         } else {
             Text("Not playing")
+                .font(.title3)
                 .foregroundStyle(.secondary)
         }
     }
 
-    /// The Status tab's own content — just the extra status line now that
-    /// name/frequency/recording-name live in `nowPlayingHeader` above,
-    /// visible regardless of which tab is selected.
-    @ViewBuilder
-    private var statusDetailContent: some View {
-        if viewModel.isPlayingRecording {
-            Text("Playing recording")
-                .foregroundStyle(.secondary)
-        } else if let status = viewModel.nowPlaying {
-            Text(status.statusText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
+    /// `nil` when it would only repeat the header, e.g. "Filler" under "Filler".
+    private var statusLine: String? {
+        if viewModel.isPlayingRecording { return "Playing recording" }
+        guard let status = viewModel.nowPlaying, status.statusText != status.stationName else { return nil }
+        return status.statusText
+    }
+}
+
+/// Wraps `CaptionsSubview` as a detail page, and polls captions only while
+/// it's showing — the poll ends when the user picks another section.
+private struct CaptionsDetail: View {
+    var viewModel: AntennaHeadViewModel
+
+    var body: some View {
+        CaptionsSubview(viewModel: viewModel)
+            .padding(60)
+            .navigationTitle("Captions")
+            .task {
+                while !Task.isCancelled {
+                    await viewModel.refreshCaptions()
+                    try? await Task.sleep(for: .seconds(1))
+                }
+            }
+    }
+}
+
+private struct SpatialAudioDetail: View {
+    var viewModel: AntennaHeadViewModel
+
+    var body: some View {
+        SpatialPositionSubview(viewModel: viewModel)
+            .padding(60)
+            .navigationTitle("Spatial Audio")
     }
 }
 
@@ -445,26 +509,24 @@ private struct CaptionsSubview: View {
                 }
             }
         }
-        // Fills whatever vertical space NowPlayingDetail's now-compact
-        // controlBar leaves free, rather than the old fixed minHeight —
-        // this is the whole point of the row-consolidation above: more
-        // room for the transcript itself.
+        // Fills the whole detail area — as much room as possible for the
+        // transcript itself.
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         // Reading captions involves no remote presses — exactly the kind of
         // idle tvOS otherwise (reasonably) reads as "nobody's watching" and
         // starts the screensaver over. Scoped to just this view's lifetime
         // (not the whole app) via onAppear/onDisappear, which fire reliably
-        // here since NowPlayingDetail's tab switch actually removes this
-        // view from the hierarchy rather than just hiding it.
+        // here since picking another section removes this view from the
+        // hierarchy rather than just hiding it.
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
     }
 }
 
 /// Live spatial-audio position (`PCMDistanceGain`/`PCMBinauralPanner`'s
-/// azimuth, elevation, and distance) — a third Now Playing tab alongside
-/// Status and Captions, same reasoning as Captions' own doc comment: this
-/// only means anything while something's playing.
+/// azimuth, elevation, and distance) — opened from the Now Playing strip
+/// alongside Captions, since this only means anything while something's
+/// playing.
 ///
 /// Plain +/- buttons, not a slider or a stepper: SwiftUI's `Slider` *and*
 /// `Stepper` are both unavailable on tvOS entirely (confirmed by the
@@ -684,6 +746,426 @@ private struct ControlBoothDetail: View {
             }
         }
         .task { await viewModel.loadControlBoothStatus() }
+    }
+}
+
+/// Listen to Gqrx: launch Gqrx on the Mac if it isn't running, then listen
+/// to its UDP audio. Tuning Gqrx itself (frequency, mode, gains, squelch,
+/// bookmarks) stays on the Mac or AntennaHead's web page.
+private struct GqrxDetail: View {
+    var viewModel: AntennaHeadViewModel
+
+    var body: some View {
+        Group {
+            if let status = viewModel.gqrxStatus {
+                VStack(alignment: .leading, spacing: 32) {
+                    if status.isRunning {
+                        Label("Gqrx is running on the Mac.", systemImage: "checkmark.circle")
+                    } else {
+                        Text("Gqrx isn't running.")
+                            .foregroundStyle(.secondary)
+                        Button {
+                            Task {
+                                await viewModel.launchGqrx()
+                                // Launching doesn't wait for Gqrx to finish
+                                // starting, so check again shortly.
+                                try? await Task.sleep(for: .seconds(3))
+                                await viewModel.loadGqrxStatus()
+                            }
+                        } label: {
+                            Label("Launch Gqrx and Listen", systemImage: "play.fill")
+                        }
+                    }
+
+                    Text("Set Gqrx's Audio \u{25B8} UDP output to port \(String(status.receivePort)), then choose Listen. Pick Mono if Gqrx's Audio \u{25B8} Stereo box is unchecked.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: 1000, alignment: .leading)
+
+                    HStack(spacing: 24) {
+                        Button {
+                            Task { await viewModel.startGqrx(channels: 2) }
+                        } label: {
+                            Label("Listen in Stereo", systemImage: "headphones")
+                        }
+                        Button {
+                            Task { await viewModel.startGqrx(channels: 1) }
+                        } label: {
+                            Label("Listen in Mono", systemImage: "speaker.wave.1")
+                        }
+                    }
+                }
+                .padding(60)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .navigationTitle("Listen to Gqrx")
+        .toolbar {
+            Button("Refresh") {
+                Task { await viewModel.loadGqrxStatus() }
+            }
+        }
+        .task { await viewModel.loadGqrxStatus() }
+    }
+}
+
+/// ControlBooth's AirPlay Receiver: start or stop relaying its audio to
+/// AntennaHead. Mirrors the AirPlay section of the web UI's ControlBooth page.
+private struct AirPlayDetail: View {
+    var viewModel: AntennaHeadViewModel
+
+    var body: some View {
+        Group {
+            if let status = viewModel.controlBoothStatus {
+                VStack(alignment: .leading, spacing: 32) {
+                    if !status.isRunning {
+                        Text("The AirPlay Receiver is part of ControlBooth, which isn't running.")
+                            .foregroundStyle(.secondary)
+                        Button("Launch ControlBooth") {
+                            Task {
+                                await viewModel.launchControlBooth()
+                                try? await Task.sleep(for: .seconds(3))
+                                await viewModel.loadControlBoothStatus()
+                            }
+                        }
+                    } else {
+                        Text("AirPlay: \(Self.statusText(status))")
+                            .font(.headline)
+                        if status.isListeningToAirPlay {
+                            Button {
+                                Task { await viewModel.stopAirPlay() }
+                            } label: {
+                                Label("Stop", systemImage: "stop.fill")
+                            }
+                        } else {
+                            Button {
+                                Task { await viewModel.startAirPlay() }
+                            } label: {
+                                Label("Listen", systemImage: "airplayaudio")
+                            }
+                        }
+                        Text("Play to ControlBooth's AirPlay receiver from an iPhone, iPad, or Mac, and the audio comes through AntennaHead's live stream.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: 1000, alignment: .leading)
+                    }
+                }
+                .padding(60)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .navigationTitle("AirPlay Receiver")
+        .toolbar {
+            Button("Refresh") {
+                Task { await viewModel.loadControlBoothStatus() }
+            }
+        }
+        .task { await viewModel.loadControlBoothStatus() }
+    }
+
+    /// Same wording as the web page's `controlBoothAirPlaySectionHTML()`.
+    private static func statusText(_ status: ControlBoothStatus) -> String {
+        guard let enabled = status.airPlayEnabled else { return "Unknown" }
+        if !enabled { return "Not in use" }
+        if status.airPlayReceivingAudio == true { return "Receiving AirPlay audio" }
+        return "Idle \u{2014} advertising, no AirPlay client connected"
+    }
+}
+
+private extension FileSequence {
+    var label: String {
+        switch self {
+        case .chronological: "Oldest First"
+        case .alphabetical: "Alphabetical"
+        case .random: "Random"
+        }
+    }
+}
+
+/// Play Audio Files and Text to Speech — the same page shape as their web
+/// forms: the files in the folder chosen in AntennaHead's Configuration tab,
+/// each checked by default, plus play order, Repeat, and (Play Audio Files
+/// only) a playlist, then Listen.
+private struct FolderSourceDetail: View {
+    let title: String
+    /// For the empty-folder message, e.g. "audio files".
+    let fileKind: String
+    let listing: FolderListing?
+    let load: () async -> Void
+    /// `(fileNames, sequence, repeatForever, playlistName)`. `fileNames` is
+    /// `nil` when every file is checked.
+    let start: ([String]?, FileSequence, Bool, String?) async -> Void
+
+    /// Tracks the *unchecked* files, so everything is checked by default and
+    /// files that appear after a Refresh start out checked too.
+    @State private var unchecked: Set<String> = []
+    @State private var sequence: FileSequence = .chronological
+    @State private var repeatForever = false
+    @State private var playlist: String?
+    @State private var isStarting = false
+
+    var body: some View {
+        Group {
+            if let listing {
+                if !listing.folderConfigured {
+                    ContentUnavailableView("No Folder Selected", systemImage: "folder.badge.questionmark",
+                                           description: Text("Choose a \(title) folder in AntennaHead's Configuration tab on the Mac."))
+                } else if listing.files.isEmpty && listing.playlists.isEmpty {
+                    ContentUnavailableView("No Files", systemImage: "folder",
+                                           description: Text("There are no \(fileKind) in \(listing.folderPath ?? "the folder")."))
+                } else {
+                    content(listing)
+                }
+            } else {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .navigationTitle(title)
+        .toolbar {
+            Button("Refresh") {
+                Task { await load() }
+            }
+        }
+        .task { await load() }
+    }
+
+    private func content(_ listing: FolderListing) -> some View {
+        let checkedNames = listing.files.map(\.name).filter { !unchecked.contains($0) }
+        let usesPlaylist = playlist != nil
+        return VStack(alignment: .leading, spacing: 24) {
+            HStack(spacing: 20) {
+                Button {
+                    Task {
+                        isStarting = true
+                        defer { isStarting = false }
+                        let names = unchecked.isEmpty ? nil : checkedNames
+                        await start(names, sequence, repeatForever, playlist)
+                    }
+                } label: {
+                    if isStarting {
+                        ProgressView()
+                    } else {
+                        Label("Listen", systemImage: "play.fill")
+                    }
+                }
+                .disabled(isStarting || (!usesPlaylist && checkedNames.isEmpty))
+
+                Menu {
+                    ForEach(FileSequence.allCases, id: \.self) { candidate in
+                        Button(candidate.label) { sequence = candidate }
+                    }
+                } label: {
+                    Label("Order: \(sequence.label)", systemImage: "arrow.up.arrow.down")
+                }
+                .disabled(usesPlaylist)
+
+                Button {
+                    repeatForever.toggle()
+                } label: {
+                    Label(repeatForever ? "Repeat: On" : "Repeat: Off", systemImage: "repeat")
+                }
+                .tint(repeatForever ? .accentColor : nil)
+
+                if !listing.playlists.isEmpty {
+                    Menu {
+                        Button("None") { playlist = nil }
+                        ForEach(listing.playlists, id: \.self) { name in
+                            Button(name) { playlist = name }
+                        }
+                    } label: {
+                        Label("Playlist: \(playlist ?? "None")", systemImage: "list.bullet")
+                    }
+                }
+            }
+            .lineLimit(1)
+
+            if usesPlaylist {
+                Text("Playing the playlist's own files in its own order.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } else {
+                // Not in the List's section header: tvOS doesn't focus
+                // buttons there.
+                SelectionBar(selectedCount: checkedNames.count, totalCount: listing.files.count,
+                             selectAll: { unchecked = [] },
+                             selectNone: { unchecked = Set(listing.files.map(\.name)) })
+            }
+
+            List(listing.files) { file in
+                CheckRow(title: file.name,
+                         detail: Self.dateFormatter.string(from: file.modifiedAt),
+                         isChecked: !unchecked.contains(file.name)) {
+                    if unchecked.contains(file.name) {
+                        unchecked.remove(file.name)
+                    } else {
+                        unchecked.insert(file.name)
+                    }
+                }
+            }
+            .disabled(usesPlaylist)
+        }
+        .padding(.horizontal, 60)
+        .padding(.top, 20)
+    }
+
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
+}
+
+/// Speak RSS Headlines: pick feeds and how many headlines each, then Listen.
+/// Always uses each feed's own voice; adding and editing feeds, and the
+/// alternating co-anchor voices, stay on the web page.
+private struct RSSHeadlinesDetail: View {
+    var viewModel: AntennaHeadViewModel
+
+    @State private var uncheckedIDs: Set<Int64> = []
+    @State private var itemsPerFeed = 5
+    @State private var repeatForever = false
+    @State private var isStarting = false
+
+    var body: some View {
+        Group {
+            if let feeds = viewModel.rssFeeds {
+                if feeds.isEmpty {
+                    ContentUnavailableView("No Feeds", systemImage: "dot.radiowaves.up.forward",
+                                           description: Text("Add feeds on AntennaHead's Speak RSS Headlines web page."))
+                } else {
+                    content(feeds)
+                }
+            } else {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .navigationTitle("Speak RSS Headlines")
+        .toolbar {
+            Button("Refresh") {
+                Task { await viewModel.loadRSSFeeds() }
+            }
+        }
+        .task { await viewModel.loadRSSFeeds() }
+    }
+
+    private func content(_ feeds: [RSSFeedSummary]) -> some View {
+        let checkedIDs = feeds.map(\.id).filter { !uncheckedIDs.contains($0) }
+        return VStack(alignment: .leading, spacing: 24) {
+            HStack(spacing: 20) {
+                Button {
+                    Task {
+                        isStarting = true
+                        defer { isStarting = false }
+                        await viewModel.startRSSHeadlines(StartRSSHeadlinesRequest(
+                            feedIDs: checkedIDs, itemsPerFeed: itemsPerFeed, repeatForever: repeatForever))
+                    }
+                } label: {
+                    if isStarting {
+                        ProgressView()
+                    } else {
+                        Label("Listen", systemImage: "play.fill")
+                    }
+                }
+                .disabled(isStarting || checkedIDs.isEmpty)
+
+                // `Stepper` isn't available on tvOS; a -/+ pair is.
+                Text("\(itemsPerFeed) per feed")
+                    .monospacedDigit()
+                Button {
+                    itemsPerFeed = max(1, itemsPerFeed - 1)
+                } label: {
+                    Image(systemName: "minus")
+                }
+                Button {
+                    itemsPerFeed = min(20, itemsPerFeed + 1)
+                } label: {
+                    Image(systemName: "plus")
+                }
+
+                Button {
+                    repeatForever.toggle()
+                } label: {
+                    Label(repeatForever ? "Repeat: On" : "Repeat: Off", systemImage: "repeat")
+                }
+                .tint(repeatForever ? .accentColor : nil)
+            }
+            .lineLimit(1)
+
+            if isStarting {
+                Text("Fetching the headlines and rendering speech\u{2026}")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
+            SelectionBar(selectedCount: checkedIDs.count, totalCount: feeds.count,
+                         selectAll: { uncheckedIDs = [] },
+                         selectNone: { uncheckedIDs = Set(feeds.map(\.id)) })
+
+            List(feeds) { feed in
+                CheckRow(title: feed.name, detail: nil, isChecked: !uncheckedIDs.contains(feed.id)) {
+                    if uncheckedIDs.contains(feed.id) {
+                        uncheckedIDs.remove(feed.id)
+                    } else {
+                        uncheckedIDs.insert(feed.id)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 60)
+        .padding(.top, 20)
+    }
+}
+
+/// "2 of 5 selected" with Select All / Select None, above a `CheckRow` list.
+private struct SelectionBar: View {
+    let selectedCount: Int
+    let totalCount: Int
+    let selectAll: () -> Void
+    let selectNone: () -> Void
+
+    var body: some View {
+        HStack(spacing: 20) {
+            Text("\(selectedCount) of \(totalCount) selected")
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button("Select All", action: selectAll)
+            Button("Select None", action: selectNone)
+        }
+        .lineLimit(1)
+    }
+}
+
+/// A list row that toggles a checkmark — tvOS's stand-in for the web forms'
+/// checkboxes.
+private struct CheckRow: View {
+    let title: String
+    let detail: String?
+    let isChecked: Bool
+    let toggle: () -> Void
+
+    var body: some View {
+        Button(action: toggle) {
+            HStack(spacing: 20) {
+                Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isChecked ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                Text(title)
+                    .lineLimit(1)
+                Spacer()
+                if let detail {
+                    Text(detail)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
     }
 }
 

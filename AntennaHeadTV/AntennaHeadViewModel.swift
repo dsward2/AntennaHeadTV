@@ -5,7 +5,8 @@ import Foundation
 /// Owns the connection to one AntennaHead Mac, the audio playback, and the
 /// state `ContentView` renders.
 ///
-/// Section data (devices, recordings, ControlBooth status) is loaded
+/// Section data (devices, recordings, ControlBooth status, and the Gqrx,
+/// audio file, text file, and RSS feed listings) is loaded
 /// lazily, one section at a time, rather than all upfront in `connect()` —
 /// matches the web UI's own page-by-page loading, and avoids e.g. an
 /// AppleEvents round trip to a ControlBooth that isn't even running just to
@@ -24,12 +25,10 @@ final class AntennaHeadViewModel {
     private(set) var controlBoothStatus: ControlBoothStatus?
     private(set) var captions: CaptionsStatus?
     private(set) var spatialAudio: SpatialAudioStatus?
-    /// The sidebar's current selection — lives here rather than as
-    /// `MainScreen`'s own `@State` so every "start listening to X" action
-    /// (tune, scan, device, recording, ControlBooth) can jump the user to
-    /// Now Playing from wherever it's called, not just from within the
-    /// Now Playing screen itself.
-    var selectedSection: SidebarSection = .nowPlaying
+    private(set) var gqrxStatus: GqrxStatus?
+    private(set) var audioFiles: FolderListing?
+    private(set) var textToSpeechFiles: FolderListing?
+    private(set) var rssFeeds: [RSSFeedSummary]?
     /// True while the shared player is pointed at a recording instead of the
     /// live stream — drives the "Now Playing" detail's own status line, since
     /// `nowPlaying` (server-side tuning state) doesn't know about local
@@ -37,6 +36,8 @@ final class AntennaHeadViewModel {
     private(set) var isPlayingRecording = false
     private(set) var nowPlayingRecordingName: String?
     var errorMessage: String?
+    /// The message `refreshNowPlaying()` last put in `errorMessage`, if any.
+    private var pollErrorMessage: String?
 
     private var client: AntennaHeadAPIClient
     private var player: AVPlayer?
@@ -100,14 +101,26 @@ final class AntennaHeadViewModel {
         controlBoothStatus = nil
         captions = nil
         spatialAudio = nil
+        gqrxStatus = nil
+        audioFiles = nil
+        textToSpeechFiles = nil
+        rssFeeds = nil
     }
 
+    /// Runs every couple of seconds for as long as the main screen is up, so
+    /// on success it clears only an error it reported itself (e.g. the Mac
+    /// went away and came back) — clearing any error would wipe out a failed
+    /// action's message before anyone could read it.
     func refreshNowPlaying() async {
         do {
             nowPlaying = try await client.nowPlaying()
-            errorMessage = nil
+            if let pollErrorMessage, errorMessage == pollErrorMessage {
+                errorMessage = nil
+            }
+            pollErrorMessage = nil
         } catch {
             report(error)
+            pollErrorMessage = errorMessage
         }
     }
 
@@ -146,7 +159,6 @@ final class AntennaHeadViewModel {
             nowPlaying = try await client.tune(frequencyID: frequency.id)
             errorMessage = nil
             resumeLivePlayback()
-            selectedSection = .nowPlaying
         } catch {
             report(error)
         }
@@ -157,7 +169,6 @@ final class AntennaHeadViewModel {
             nowPlaying = try await client.startScan(categoryID: category.id)
             errorMessage = nil
             resumeLivePlayback()
-            selectedSection = .nowPlaying
         } catch {
             report(error)
         }
@@ -194,7 +205,6 @@ final class AntennaHeadViewModel {
             nowPlaying = try await client.startDevice(name: device.name)
             errorMessage = nil
             resumeLivePlayback()
-            selectedSection = .nowPlaying
         } catch {
             report(error)
         }
@@ -226,7 +236,6 @@ final class AntennaHeadViewModel {
         player.play()
         isPlayingRecording = true
         nowPlayingRecordingName = recording.fileName
-        selectedSection = .nowPlaying
     }
 
     // MARK: ControlBooth
@@ -254,7 +263,6 @@ final class AntennaHeadViewModel {
             nowPlaying = try await client.startControlBoothPipeline(named: name)
             errorMessage = nil
             resumeLivePlayback()
-            selectedSection = .nowPlaying
         } catch {
             report(error)
         }
@@ -265,6 +273,98 @@ final class AntennaHeadViewModel {
     func stopControlBooth() async {
         do {
             nowPlaying = try await client.stopControlBooth()
+            errorMessage = nil
+            resumeLivePlayback()
+        } catch {
+            report(error)
+        }
+    }
+
+    /// Relays ControlBooth's AirPlay Receiver audio to AntennaHead, then
+    /// refreshes `controlBoothStatus` so the AirPlay section shows Stop.
+    func startAirPlay() async {
+        await startSource { try await $0.startAirPlay() }
+        await loadControlBoothStatus()
+    }
+
+    func stopAirPlay() async {
+        await startSource { try await $0.stopAirPlay() }
+        await loadControlBoothStatus()
+    }
+
+    // MARK: Gqrx
+
+    func loadGqrxStatus() async {
+        do {
+            gqrxStatus = try await client.gqrxStatus()
+            errorMessage = nil
+        } catch {
+            report(error)
+        }
+    }
+
+    /// Launches Gqrx and starts listening to it (the server does both, like
+    /// the web page's Launch Gqrx button).
+    func launchGqrx() async {
+        do {
+            gqrxStatus = try await client.launchGqrx()
+            errorMessage = nil
+            resumeLivePlayback()
+        } catch {
+            report(error)
+        }
+    }
+
+    func startGqrx(channels: Int) async {
+        await startSource { try await $0.startGqrx(channels: channels) }
+    }
+
+    // MARK: Play Audio Files, Text to Speech, Speak RSS Headlines
+
+    func loadAudioFiles() async {
+        do {
+            audioFiles = try await client.audioFiles()
+            errorMessage = nil
+        } catch {
+            report(error)
+        }
+    }
+
+    func startAudioFiles(_ request: StartAudioFilesRequest) async {
+        await startSource { try await $0.startAudioFiles(request) }
+    }
+
+    func loadTextToSpeechFiles() async {
+        do {
+            textToSpeechFiles = try await client.textToSpeechFiles()
+            errorMessage = nil
+        } catch {
+            report(error)
+        }
+    }
+
+    func startTextToSpeech(_ request: StartTextToSpeechRequest) async {
+        await startSource { try await $0.startTextToSpeech(request) }
+    }
+
+    func loadRSSFeeds() async {
+        do {
+            rssFeeds = try await client.rssFeeds()
+            errorMessage = nil
+        } catch {
+            report(error)
+        }
+    }
+
+    func startRSSHeadlines(_ request: StartRSSHeadlinesRequest) async {
+        await startSource { try await $0.startRSSHeadlines(request) }
+    }
+
+    /// Shared tail of every "start listening to X" call: take the returned
+    /// now-playing status and make sure the player is on the live stream.
+    private func startSource(_ start: (AntennaHeadAPIClient) async throws -> NowPlayingStatus) async {
+        do {
+            nowPlaying = try await start(client)
             errorMessage = nil
             resumeLivePlayback()
         } catch {
