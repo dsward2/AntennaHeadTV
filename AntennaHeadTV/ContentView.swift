@@ -392,8 +392,9 @@ private struct NowPlayingDetail: View {
 
 /// Live speech-to-text, polled from `/captions.json` — see
 /// `CaptionsStatus`'s doc comment. Mirrors `captions.html`: finalized
-/// segments as a scrolling transcript, the current in-progress hypothesis
-/// (if any) below it in a dimmer, italic style.
+/// segments as a scrolling transcript (with each retune's "Now playing …"
+/// announcement line set off as a divider), the current in-progress
+/// hypothesis (if any) below it in a dimmer, italic style.
 private struct CaptionsSubview: View {
     var viewModel: AntennaHeadViewModel
 
@@ -412,8 +413,22 @@ private struct CaptionsSubview: View {
                                     .foregroundStyle(.secondary)
                             }
                             ForEach(Array(finals.enumerated()), id: \.offset) { index, line in
-                                Text(line)
+                                if line.isAnnouncement {
+                                    // The "Now playing …" marker AntennaHead inserts
+                                    // on each retune — styled as a divider between
+                                    // sources, like captions.html's
+                                    // `.caption-announcement`.
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        if index > 0 { Divider() }
+                                        Text(line.text)
+                                            .italic()
+                                            .foregroundStyle(.secondary)
+                                    }
                                     .id(index)
+                                } else {
+                                    Text(line.text)
+                                        .id(index)
+                                }
                             }
                             if let live = viewModel.captions?.live, !live.isEmpty {
                                 Text(live)
