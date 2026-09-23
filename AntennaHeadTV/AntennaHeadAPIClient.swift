@@ -173,6 +173,16 @@ actor AntennaHeadAPIClient {
         try await post(APIEndpoint.gqrxStart, body: StartGqrxRequest(channels: channels))
     }
 
+    func gqrxBookmarks() async throws -> [GqrxBookmarkSummary] {
+        try await get(APIEndpoint.gqrxBookmarks)
+    }
+
+    @discardableResult
+    func playGqrxBookmark(frequencyHz: Int64, channels: Int) async throws -> NowPlayingStatus {
+        try await post(APIEndpoint.gqrxBookmarkPlay,
+                       body: PlayGqrxBookmarkRequest(frequencyHz: frequencyHz, channels: channels))
+    }
+
     func audioFiles() async throws -> FolderListing {
         try await get(APIEndpoint.audioFiles)
     }
