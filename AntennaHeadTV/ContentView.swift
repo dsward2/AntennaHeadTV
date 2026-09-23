@@ -258,6 +258,13 @@ private struct MainScreen: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .focusSection()
             }
+            // Down from the strip must always land somewhere. The strip's
+            // buttons sit above the detail area only, so on a page with
+            // nothing focusable (Captions, Spatial Audio Off) the detail
+            // section alone gave the focus engine no target, and focus was
+            // stuck in the strip. This outer section lets it fall back to
+            // the sidebar.
+            .focusSection()
         }
         .focusScope(focusNamespace)
         // Owns the now-playing poll, since the strip is always on screen.
