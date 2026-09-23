@@ -2,21 +2,25 @@ import AntennaHeadAPI
 import SwiftUI
 import UIKit
 
-/// Manual host entry (no Bonjour discovery yet — see the feasibility study's
-/// open item on pairing) → a master-detail layout: a sidebar of sections on
-/// the left, each section's content filling the right. See
-/// `AntennaHeadAPI`'s README and the feasibility study for what's still
-/// deferred (Tuner, Settings, Custom Tasks, Bonjour discovery, HTTPS/auth,
+/// Server picker (Bonjour discovery + manual host entry) → a master-detail
+/// layout: a sidebar of sections on the left, each section's content filling
+/// the right. See `AntennaHeadAPI`'s README and the feasibility study for
+/// what's still deferred (Tuner, Settings, Custom Tasks, HTTPS/auth,
 /// push-based status).
 struct ContentView: View {
     @AppStorage("AntennaHeadTV.host") private var host = ""
+    /// Bonjour name of the server last picked from the discovered list, so
+    /// the picker can put focus back on it next launch. Cleared by a manual
+    /// connect, since the typed address may be a different Mac.
+    @AppStorage("AntennaHeadTV.serverName") private var serverName = ""
     @State private var viewModel: AntennaHeadViewModel?
 
     var body: some View {
         if let viewModel, viewModel.isConnected {
             MainScreen(viewModel: viewModel)
         } else {
-            ConnectScreen(host: $host, viewModel: viewModel) {
+            ConnectScreen(host: $host, lastServerName: serverName, viewModel: viewModel) { pickedName in
+                serverName = pickedName ?? ""
                 let model = viewModel ?? AntennaHeadViewModel(host: host)
                 model.host = host
                 viewModel = model
@@ -26,13 +30,28 @@ struct ContentView: View {
     }
 }
 
-/// Host entry + Connect. Kept as a plain `TextField` rather than anything
-/// fancier — tvOS's on-screen keyboard handles it fine, and this is meant to
-/// be replaced by Bonjour discovery, not polished as a permanent UI.
+/// Discovered AntennaHead Macs (see `ServerBrowser`) as one button each,
+/// with the manual host:port field and Connect button below as the fallback
+/// for when Bonjour can't see the Mac. tvOS has no combo box; a focusable
+/// list over a text field is its native equivalent, and picking a server
+/// just fills in `host` and connects through the same path manual entry uses.
 private struct ConnectScreen: View {
     @Binding var host: String
+    var lastServerName: String
     var viewModel: AntennaHeadViewModel?
-    var connect: () async -> Void
+    /// Connects to `host`. The argument is the picked server's Bonjour name,
+    /// or `nil` for a manually entered address.
+    var connect: (String?) async -> Void
+
+    @State private var browser = ServerBrowser()
+    /// The server currently being resolved to an address, for its spinner.
+    @State private var resolving: String?
+    @State private var resolveError: String?
+    @Namespace private var focusNamespace
+
+    private var isBusy: Bool {
+        resolving != nil || viewModel?.isConnecting == true
+    }
 
     var body: some View {
         VStack(spacing: 24) {
@@ -41,7 +60,10 @@ private struct ConnectScreen: View {
                 .foregroundStyle(.secondary)
             Text("Connect to AntennaHead")
                 .font(.title)
-            Text("Enter the Mac's address, e.g. 192.168.1.23:8090 — shown in AntennaHead's own window.")
+
+            serverList
+
+            Text("Or enter the Mac's address, e.g. 192.168.1.23:8090 — shown in AntennaHead's own window.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -51,17 +73,18 @@ private struct ConnectScreen: View {
                 .frame(maxWidth: 480)
 
             Button {
-                Task { await connect() }
+                resolveError = nil
+                Task { await connect(nil) }
             } label: {
-                if viewModel?.isConnecting == true {
+                if viewModel?.isConnecting == true && resolving == nil {
                     ProgressView()
                 } else {
                     Text("Connect")
                 }
             }
-            .disabled(host.isEmpty || viewModel?.isConnecting == true)
+            .disabled(host.isEmpty || isBusy)
 
-            if let message = viewModel?.errorMessage {
+            if let message = resolveError ?? viewModel?.errorMessage {
                 Text(message)
                     .font(.caption)
                     .foregroundStyle(.red)
@@ -70,6 +93,73 @@ private struct ConnectScreen: View {
             }
         }
         .padding(60)
+        .focusScope(focusNamespace)
+        .onAppear { browser.start() }
+        .onDisappear { browser.stop() }
+    }
+
+    @ViewBuilder
+    private var serverList: some View {
+        VStack(spacing: 12) {
+            if browser.servers.isEmpty {
+                HStack(spacing: 16) {
+                    if browser.browseError == nil {
+                        ProgressView()
+                    }
+                    Text(browser.browseError ?? "Looking for AntennaHead on your network…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: 720, minHeight: 80)
+            } else {
+                ForEach(browser.servers) { server in
+                    serverButton(server)
+                }
+            }
+        }
+    }
+
+    private func serverButton(_ server: ServerBrowser.Server) -> some View {
+        Button {
+            Task { await pick(server) }
+        } label: {
+            HStack(spacing: 20) {
+                Image(systemName: "desktopcomputer")
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(server.name)
+                    if let reason = server.unsupportedReason {
+                        Text(reason)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if server.name == lastServerName {
+                        Text("Last used")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                if resolving == server.name {
+                    ProgressView()
+                }
+            }
+            .frame(maxWidth: 720)
+        }
+        .disabled(server.unsupportedReason != nil || isBusy)
+        .prefersDefaultFocus(server.name == lastServerName, in: focusNamespace)
+    }
+
+    private func pick(_ server: ServerBrowser.Server) async {
+        resolveError = nil
+        resolving = server.name
+        defer { resolving = nil }
+        do {
+            host = try await browser.resolve(server)
+        } catch {
+            resolveError = error.localizedDescription
+            return
+        }
+        await connect(server.name)
     }
 }
 

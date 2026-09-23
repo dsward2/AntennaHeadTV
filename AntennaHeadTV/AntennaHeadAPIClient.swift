@@ -4,12 +4,12 @@ import Foundation
 /// Talks to one AntennaHead Mac's JSON API (`/api/v1/...`, see
 /// `AntennaHeadAPI`'s README) over plain HTTP on the LAN.
 ///
-/// No discovery yet — `host` is entered manually (see `ConnectScreen`) until
-/// Bonjour-based pairing (flagged as a follow-up in the feasibility study) is
-/// built. That also means no HTTPS/Basic-Auth support yet either, unlike the
+/// `host` is a plain "host:port", either typed in or resolved from a Bonjour
+/// result by `ServerBrowser`. No HTTPS/Basic-Auth support yet, unlike the
 /// web UI — this client assumes AntennaHead's plain HTTP listener with no
 /// auth configured, since that's the simplest thing that lets the rest of
-/// the app get built and tested first.
+/// the app get built and tested first. (`ServerBrowser` lists servers that
+/// advertise auth as unsupported rather than hiding them.)
 actor AntennaHeadAPIClient {
     enum ClientError: Error, LocalizedError {
         case invalidHost
