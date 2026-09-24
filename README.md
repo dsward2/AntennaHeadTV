@@ -57,10 +57,15 @@ Listen to Gqrx, AirPlay Receiver, ControlBooth), and Files & Speech
   (`host:port`, e.g. `192.168.1.23:8090`). AntennaHead already advertises
   itself as generic `_http._tcp`/`_https._tcp`; a dedicated service type for
   unambiguous discovery from this app is the natural next step.
-- **HTTPS.** The client only speaks plain HTTP. AntennaHead's web login
-  (Basic Auth) is supported: enter the username and password on the connect
-  screen (the password is kept in the Keychain), and they're sent with API
-  calls, the live stream, and recording playback.
+- **Self-signed HTTPS.** **Use HTTPS** on the connect screen works with a
+  certificate the Apple TV already trusts (e.g. Tailscale or Let's Encrypt,
+  loaded into AntennaHead as a user-supplied `.p12`). Enter the certificate's
+  name and AntennaHead's HTTPS port, e.g. `mac.example.com:8094`. AntennaHead's
+  own self-signed certificate isn't trusted, and AVPlayer can't be told to
+  trust it. AntennaHead's web login (Basic Auth) is supported over HTTP or
+  HTTPS: enter the username and password on the connect screen (the password
+  is kept in the Keychain), and they're sent with API calls, the live stream,
+  and recording playback.
 - **Push updates.** Now Playing polls `/api/v1/now-playing` every 2 seconds,
   matching the web UI's own cadence. An SSE/WebSocket channel is a flagged
   follow-up once there's a second client (watchOS) that would also benefit

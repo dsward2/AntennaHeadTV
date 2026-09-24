@@ -15,6 +15,8 @@ import Foundation
 @Observable
 final class AntennaHeadViewModel {
     var host: String
+    /// Use AntennaHead's HTTPS listener (`host` is then its HTTPS port).
+    var usesHTTPS: Bool
     /// AntennaHead's web login, when it's on. Sent with API calls, the live
     /// stream, and recording playback.
     var login: WebLogin?
@@ -51,10 +53,16 @@ final class AntennaHeadViewModel {
     private var player: AVPlayer?
     private var liveURL: URL?
 
-    init(host: String, login: WebLogin?) {
+    init(host: String, usesHTTPS: Bool, login: WebLogin?) {
         self.host = host
+        self.usesHTTPS = usesHTTPS
         self.login = login
-        self.client = AntennaHeadAPIClient(host: host, login: login)
+        self.client = AntennaHeadAPIClient(host: host, usesHTTPS: usesHTTPS, login: login)
+    }
+
+    /// `path` on the server, over HTTP or HTTPS as configured.
+    private func serverURL(_ path: String) -> URL? {
+        URL(string: "\(usesHTTPS ? "https" : "http")://\(host)\(path)")
     }
 
     /// Surfaces `error` in `errorMessage` unless it's merely task
@@ -83,7 +91,7 @@ final class AntennaHeadViewModel {
         errorMessage = nil
         isConnecting = true
         defer { isConnecting = false }
-        client = AntennaHeadAPIClient(host: host, login: login)
+        client = AntennaHeadAPIClient(host: host, usesHTTPS: usesHTTPS, login: login)
         do {
             async let np = client.nowPlaying()
             async let favs = client.favorites()
@@ -242,7 +250,7 @@ final class AntennaHeadViewModel {
     /// src from an explicit "start listening" action, not from mere
     /// navigation between pages.
     func playRecording(_ recording: RecordingSummary) {
-        guard let player, let url = URL(string: "http://\(host)\(recording.downloadPath)") else { return }
+        guard let player, let url = serverURL(recording.downloadPath) else { return }
         player.replaceCurrentItem(with: playerItem(url))
         player.play()
         isPlayingRecording = true
@@ -410,7 +418,7 @@ final class AntennaHeadViewModel {
     /// AAC/M4A mount). Same host:port as the JSON API — no separate stream
     /// server/port to configure.
     private func startPlayback() {
-        guard let url = URL(string: "http://\(host)/hls/index.m3u8") else { return }
+        guard let url = serverURL("/hls/index.m3u8") else { return }
         liveURL = url
         try? AVAudioSession.sharedInstance().setCategory(.playback)
         let newPlayer = AVPlayer(playerItem: playerItem(url))
