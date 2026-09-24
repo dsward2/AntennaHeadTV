@@ -1,18 +1,96 @@
 import AntennaHeadAPI
 import Foundation
+import Security
+
+/// AntennaHead's web login (HTTP Basic Auth), when it's turned on in
+/// AntennaHead's Security tab. It covers every path: the JSON API, the HLS
+/// stream, and recording downloads.
+nonisolated struct WebLogin: Equatable, Sendable {
+    var username: String
+    var password: String
+
+    /// The `Authorization` header value.
+    var authorization: String {
+        "Basic " + Data("\(username):\(password)".utf8).base64EncodedString()
+    }
+
+    /// Where `ContentView` keeps the username; the password is in the Keychain.
+    static let usernameKey = "AntennaHeadTV.username"
+    private static let keychainAccount = "weblogin"
+
+    /// The saved login, or `nil` if there's no username or password.
+    static func load() -> WebLogin? {
+        let username = UserDefaults.standard.string(forKey: usernameKey) ?? ""
+        guard !username.isEmpty, let password = Keychain.read(account: keychainAccount), !password.isEmpty else {
+            return nil
+        }
+        return WebLogin(username: username, password: password)
+    }
+
+    static func savePassword(_ password: String) {
+        if password.isEmpty {
+            Keychain.delete(account: keychainAccount)
+        } else {
+            Keychain.write(password, account: keychainAccount)
+        }
+    }
+
+    static func savedPassword() -> String {
+        Keychain.read(account: keychainAccount) ?? ""
+    }
+}
+
+/// Minimal generic-password Keychain wrapper for the web-login password.
+nonisolated enum Keychain {
+    private static let service = "com.dsward.AntennaHeadTV.weblogin"
+
+    private static func query(account: String) -> [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword,
+         kSecAttrService as String: service,
+         kSecAttrAccount as String: account]
+    }
+
+    static func read(account: String) -> String? {
+        var query = query(account: account)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var result: AnyObject?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    static func write(_ value: String, account: String) {
+        let data = Data(value.utf8)
+        let base = query(account: account)
+        let update = [kSecValueData as String: data]
+        if SecItemUpdate(base as CFDictionary, update as CFDictionary) == errSecItemNotFound {
+            var add = base
+            add[kSecValueData as String] = data
+            add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            SecItemAdd(add as CFDictionary, nil)
+        }
+    }
+
+    static func delete(account: String) {
+        SecItemDelete(query(account: account) as CFDictionary)
+    }
+}
 
 /// Talks to one AntennaHead Mac's JSON API (`/api/v1/...`, see
 /// `AntennaHeadAPI`'s README) over plain HTTP on the LAN.
 ///
 /// `host` is a plain "host:port", either typed in or resolved from a Bonjour
-/// result by `ServerBrowser`. No HTTPS/Basic-Auth support yet, unlike the
-/// web UI — this client assumes AntennaHead's plain HTTP listener with no
-/// auth configured, since that's the simplest thing that lets the rest of
-/// the app get built and tested first. (`ServerBrowser` lists servers that
-/// advertise auth as unsupported rather than hiding them.)
+/// result by `ServerBrowser`. Sends the web login (`WebLogin`) with every
+/// request when one is given. No HTTPS support yet: this client uses
+/// AntennaHead's plain HTTP listener.
 actor AntennaHeadAPIClient {
     enum ClientError: Error, LocalizedError {
         case invalidHost
+        /// A 401 with no login given.
+        case loginNeeded
+        /// A 401 with a login given: it's wrong.
+        case loginRejected
         case badResponse(Int)
         /// The server's own `{"error": ...}` message (`APIError`).
         case server(String)
@@ -22,6 +100,10 @@ actor AntennaHeadAPIClient {
             switch self {
             case .invalidHost:
                 return "Enter a valid host, e.g. 192.168.1.23:8090."
+            case .loginNeeded:
+                return "This server's web login is on. Enter its username and password below."
+            case .loginRejected:
+                return "The server rejected the web login. Check the username and password below."
             case .badResponse(let code):
                 return "The server returned HTTP \(code)."
             case .server(let message):
@@ -34,9 +116,11 @@ actor AntennaHeadAPIClient {
 
     private let session: URLSession
     let host: String
+    private let login: WebLogin?
 
-    init(host: String, session: URLSession = .shared) {
+    init(host: String, login: WebLogin?, session: URLSession = .shared) {
         self.host = host
+        self.login = login
         self.session = session
     }
 
@@ -48,7 +132,14 @@ actor AntennaHeadAPIClient {
     }
 
     private func perform<T: Decodable>(_ request: URLRequest) async throws -> T {
+        var request = request
+        if let login {
+            request.setValue(login.authorization, forHTTPHeaderField: "Authorization")
+        }
         let (data, response) = try await session.data(for: request)
+        if (response as? HTTPURLResponse)?.statusCode == 401 {
+            throw login == nil ? ClientError.loginNeeded : ClientError.loginRejected
+        }
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             if let apiError = try? JSONDecoder().decode(APIError.self, from: data) {
                 throw ClientError.server(apiError.error)

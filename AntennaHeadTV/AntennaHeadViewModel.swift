@@ -15,6 +15,9 @@ import Foundation
 @Observable
 final class AntennaHeadViewModel {
     var host: String
+    /// AntennaHead's web login, when it's on. Sent with API calls, the live
+    /// stream, and recording playback.
+    var login: WebLogin?
     private(set) var isConnecting = false
     private(set) var isConnected = false
     private(set) var nowPlaying: NowPlayingStatus?
@@ -48,9 +51,10 @@ final class AntennaHeadViewModel {
     private var player: AVPlayer?
     private var liveURL: URL?
 
-    init(host: String) {
+    init(host: String, login: WebLogin?) {
         self.host = host
-        self.client = AntennaHeadAPIClient(host: host)
+        self.login = login
+        self.client = AntennaHeadAPIClient(host: host, login: login)
     }
 
     /// Surfaces `error` in `errorMessage` unless it's merely task
@@ -79,7 +83,7 @@ final class AntennaHeadViewModel {
         errorMessage = nil
         isConnecting = true
         defer { isConnecting = false }
-        client = AntennaHeadAPIClient(host: host)
+        client = AntennaHeadAPIClient(host: host, login: login)
         do {
             async let np = client.nowPlaying()
             async let favs = client.favorites()
@@ -239,7 +243,7 @@ final class AntennaHeadViewModel {
     /// navigation between pages.
     func playRecording(_ recording: RecordingSummary) {
         guard let player, let url = URL(string: "http://\(host)\(recording.downloadPath)") else { return }
-        player.replaceCurrentItem(with: AVPlayerItem(url: url))
+        player.replaceCurrentItem(with: playerItem(url))
         player.play()
         isPlayingRecording = true
         nowPlayingRecordingName = recording.fileName
@@ -409,11 +413,24 @@ final class AntennaHeadViewModel {
         guard let url = URL(string: "http://\(host)/hls/index.m3u8") else { return }
         liveURL = url
         try? AVAudioSession.sharedInstance().setCategory(.playback)
-        let newPlayer = AVPlayer(url: url)
+        let newPlayer = AVPlayer(playerItem: playerItem(url))
         newPlayer.play()
         player = newPlayer
         isPlayingRecording = false
         nowPlayingRecordingName = nil
+    }
+
+    /// An item for `url` that carries the web login, when there is one. The
+    /// login goes out with every playlist, segment, and download request as
+    /// a header ("AVURLAssetHTTPHeaderFieldsKey", undocumented but
+    /// long-standing), the approach the Apple Watch app uses and that was
+    /// verified there with the login on.
+    private func playerItem(_ url: URL) -> AVPlayerItem {
+        var options: [String: Any] = [:]
+        if let login {
+            options["AVURLAssetHTTPHeaderFieldsKey"] = ["Authorization": login.authorization]
+        }
+        return AVPlayerItem(asset: AVURLAsset(url: url, options: options))
     }
 
     private func stopPlayback() {
@@ -431,7 +448,7 @@ final class AntennaHeadViewModel {
     /// fast-download playback (see `AntennaHead/Web/index.html`).
     private func resumeLivePlayback() {
         if isPlayingRecording, let liveURL {
-            player?.replaceCurrentItem(with: AVPlayerItem(url: liveURL))
+            player?.replaceCurrentItem(with: playerItem(liveURL))
             isPlayingRecording = false
             nowPlayingRecordingName = nil
         }

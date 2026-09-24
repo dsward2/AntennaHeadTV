@@ -5,7 +5,7 @@ import UIKit
 /// Server picker (Bonjour discovery + manual host entry) → `MainScreen`: a
 /// Now Playing strip across the top, a sidebar of sections on the left, and
 /// the selected section's content filling the rest. See `AntennaHeadAPI`'s README and the feasibility study for
-/// what's still deferred (Tuner, Settings, Custom Tasks, HTTPS/auth,
+/// what's still deferred (Tuner, Settings, Custom Tasks, HTTPS,
 /// push-based status).
 struct ContentView: View {
     @AppStorage("AntennaHeadTV.host") private var host = ""
@@ -13,16 +13,24 @@ struct ContentView: View {
     /// the picker can put focus back on it next launch. Cleared by a manual
     /// connect, since the typed address may be a different Mac.
     @AppStorage("AntennaHeadTV.serverName") private var serverName = ""
+    /// The web login's username; the password is in the Keychain (`WebLogin`).
+    @AppStorage(WebLogin.usernameKey) private var username = ""
+    @State private var password = WebLogin.savedPassword()
     @State private var viewModel: AntennaHeadViewModel?
 
     var body: some View {
         if let viewModel, viewModel.isConnected {
             MainScreen(viewModel: viewModel)
         } else {
-            ConnectScreen(host: $host, lastServerName: serverName, viewModel: viewModel) { pickedName in
+            ConnectScreen(host: $host, username: $username, password: $password,
+                          lastServerName: serverName, viewModel: viewModel) { pickedName in
                 serverName = pickedName ?? ""
-                let model = viewModel ?? AntennaHeadViewModel(host: host)
+                WebLogin.savePassword(password)
+                let login = username.isEmpty || password.isEmpty
+                    ? nil : WebLogin(username: username, password: password)
+                let model = viewModel ?? AntennaHeadViewModel(host: host, login: login)
                 model.host = host
+                model.login = login
                 viewModel = model
                 await model.connect()
             }
@@ -37,6 +45,8 @@ struct ContentView: View {
 /// just fills in `host` and connects through the same path manual entry uses.
 private struct ConnectScreen: View {
     @Binding var host: String
+    @Binding var username: String
+    @Binding var password: String
     var lastServerName: String
     var viewModel: AntennaHeadViewModel?
     /// Connects to `host`. The argument is the picked server's Bonjour name,
@@ -70,7 +80,21 @@ private struct ConnectScreen: View {
                 .frame(maxWidth: 480)
 
             TextField("host:port", text: $host)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
                 .frame(maxWidth: 480)
+
+            // Only needed when AntennaHead's web login is on (its Security
+            // tab). No autocorrect: it turns usernames into words.
+            HStack(spacing: 20) {
+                TextField("Web login username (optional)", text: $username)
+                    .textContentType(.username)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                SecureField("Password", text: $password)
+                    .textContentType(.password)
+            }
+            .frame(maxWidth: 720)
 
             Button {
                 resolveError = nil
@@ -132,8 +156,8 @@ private struct ConnectScreen: View {
                         Text(reason)
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                    } else if server.name == lastServerName {
-                        Text("Last used")
+                    } else if let note = note(for: server) {
+                        Text(note)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -147,6 +171,16 @@ private struct ConnectScreen: View {
         }
         .disabled(server.unsupportedReason != nil || isBusy)
         .prefersDefaultFocus(server.name == lastServerName, in: focusNamespace)
+    }
+
+    /// "Last used" and/or "Web login on", or `nil`.
+    private func note(for server: ServerBrowser.Server) -> String? {
+        var parts: [String] = []
+        if server.name == lastServerName { parts.append("Last used") }
+        if server.advertisement.requiresAuth {
+            parts.append(password.isEmpty ? "Web login on: enter it below" : "Web login on")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     private func pick(_ server: ServerBrowser.Server) async {
