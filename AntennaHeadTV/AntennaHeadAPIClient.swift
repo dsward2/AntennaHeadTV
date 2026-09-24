@@ -82,8 +82,9 @@ nonisolated enum Keychain {
 ///
 /// `host` is a plain "host:port", either typed in or resolved from a Bonjour
 /// result by `ServerBrowser`. Sends the web login (`WebLogin`) with every
-/// request when one is given. No HTTPS support yet: this client uses
-/// AntennaHead's plain HTTP listener.
+/// request when one is given. `usesHTTPS` selects AntennaHead's HTTPS
+/// listener, which needs a certificate this Apple TV trusts (see
+/// `ClientError.untrustedCertificate`).
 actor AntennaHeadAPIClient {
     enum ClientError: Error, LocalizedError {
         case invalidHost
@@ -92,6 +93,9 @@ actor AntennaHeadAPIClient {
         /// A 401 with a login given: it's wrong.
         case loginRejected
         case badResponse(Int)
+        /// HTTPS failed the certificate check: self-signed, or issued for a
+        /// different name than the address used.
+        case untrustedCertificate
         /// The server's own `{"error": ...}` message (`APIError`).
         case server(String)
         case decoding(Error)
@@ -104,6 +108,8 @@ actor AntennaHeadAPIClient {
                 return "This server's web login is on. Enter its username and password below."
             case .loginRejected:
                 return "The server rejected the web login. Check the username and password below."
+            case .untrustedCertificate:
+                return "This Apple TV doesn't trust the server's HTTPS certificate. HTTPS needs a certificate from a trusted authority (AntennaHead's self-signed one won't work), and the address must be the name on the certificate."
             case .badResponse(let code):
                 return "The server returned HTTP \(code)."
             case .server(let message):
@@ -116,16 +122,18 @@ actor AntennaHeadAPIClient {
 
     private let session: URLSession
     let host: String
+    private let usesHTTPS: Bool
     private let login: WebLogin?
 
-    init(host: String, login: WebLogin?, session: URLSession = .shared) {
+    init(host: String, usesHTTPS: Bool, login: WebLogin?, session: URLSession = .shared) {
         self.host = host
+        self.usesHTTPS = usesHTTPS
         self.login = login
         self.session = session
     }
 
     private func url(for path: String) throws -> URL {
-        guard !host.isEmpty, let url = URL(string: "http://\(host)\(path)") else {
+        guard !host.isEmpty, let url = URL(string: "\(usesHTTPS ? "https" : "http")://\(host)\(path)") else {
             throw ClientError.invalidHost
         }
         return url
@@ -136,7 +144,12 @@ actor AntennaHeadAPIClient {
         if let login {
             request.setValue(login.authorization, forHTTPHeaderField: "Authorization")
         }
-        let (data, response) = try await session.data(for: request)
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let error as URLError where Self.isCertificateError(error) {
+            throw ClientError.untrustedCertificate
+        }
         if (response as? HTTPURLResponse)?.statusCode == 401 {
             throw login == nil ? ClientError.loginNeeded : ClientError.loginRejected
         }
@@ -152,6 +165,16 @@ actor AntennaHeadAPIClient {
             return try decoder.decode(T.self, from: data)
         } catch {
             throw ClientError.decoding(error)
+        }
+    }
+
+    private static func isCertificateError(_ error: URLError) -> Bool {
+        switch error.code {
+        case .serverCertificateUntrusted, .serverCertificateHasBadDate, .serverCertificateHasUnknownRoot,
+             .serverCertificateNotYetValid, .secureConnectionFailed:
+            true
+        default:
+            false
         }
     }
 

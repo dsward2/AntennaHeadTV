@@ -9,6 +9,7 @@ import UIKit
 /// push-based status).
 struct ContentView: View {
     @AppStorage("AntennaHeadTV.host") private var host = ""
+    @AppStorage("AntennaHeadTV.usesHTTPS") private var usesHTTPS = false
     /// Bonjour name of the server last picked from the discovered list, so
     /// the picker can put focus back on it next launch. Cleared by a manual
     /// connect, since the typed address may be a different Mac.
@@ -19,22 +20,39 @@ struct ContentView: View {
     @State private var viewModel: AntennaHeadViewModel?
 
     var body: some View {
-        if let viewModel, viewModel.isConnected {
-            MainScreen(viewModel: viewModel)
-        } else {
-            ConnectScreen(host: $host, username: $username, password: $password,
-                          lastServerName: serverName, viewModel: viewModel) { pickedName in
-                serverName = pickedName ?? ""
-                WebLogin.savePassword(password)
-                let login = username.isEmpty || password.isEmpty
-                    ? nil : WebLogin(username: username, password: password)
-                let model = viewModel ?? AntennaHeadViewModel(host: host, login: login)
-                model.host = host
-                model.login = login
-                viewModel = model
-                await model.connect()
+        Group {
+            if let viewModel, viewModel.isConnected {
+                MainScreen(viewModel: viewModel)
+            } else {
+                ConnectScreen(host: $host, usesHTTPS: $usesHTTPS, username: $username, password: $password,
+                              lastServerName: serverName, viewModel: viewModel) { pickedName in
+                    serverName = pickedName ?? ""
+                    await connect()
+                }
             }
         }
+        #if DEBUG
+        // `-autoConnect YES` launch argument: connect with the saved
+        // settings at launch, for testing in the simulator, where the
+        // simulator panel can't press the remote's buttons.
+        .task {
+            if UserDefaults.standard.bool(forKey: "autoConnect"), viewModel == nil, !host.isEmpty {
+                await connect()
+            }
+        }
+        #endif
+    }
+
+    private func connect() async {
+        WebLogin.savePassword(password)
+        let login = username.isEmpty || password.isEmpty
+            ? nil : WebLogin(username: username, password: password)
+        let model = viewModel ?? AntennaHeadViewModel(host: host, usesHTTPS: usesHTTPS, login: login)
+        model.host = host
+        model.usesHTTPS = usesHTTPS
+        model.login = login
+        viewModel = model
+        await model.connect()
     }
 }
 
@@ -45,6 +63,7 @@ struct ContentView: View {
 /// just fills in `host` and connects through the same path manual entry uses.
 private struct ConnectScreen: View {
     @Binding var host: String
+    @Binding var usesHTTPS: Bool
     @Binding var username: String
     @Binding var password: String
     var lastServerName: String
@@ -77,12 +96,27 @@ private struct ConnectScreen: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 480)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 720)
 
             TextField("host:port", text: $host)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .frame(maxWidth: 480)
+
+            // HTTPS needs a certificate the Apple TV trusts, so the address
+            // must then be the certificate's name, e.g. mac.example.com:8094,
+            // not an IP address. AntennaHead's self-signed certificate won't do.
+            Toggle("Use HTTPS", isOn: $usesHTTPS)
+                .frame(maxWidth: 480)
+            if usesHTTPS {
+                Text("Use the name on the Mac's trusted certificate and its HTTPS port, e.g. mac.example.com:8094.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 720)
+            }
 
             // Only needed when AntennaHead's web login is on (its Security
             // tab). No autocorrect: it turns usernames into words.
@@ -189,6 +223,9 @@ private struct ConnectScreen: View {
         defer { resolving = nil }
         do {
             host = try await browser.resolve(server)
+            // Discovery yields an IP address and the plain-HTTP port, which
+            // a real certificate wouldn't cover; HTTPS needs its name typed in.
+            usesHTTPS = false
         } catch {
             resolveError = error.localizedDescription
             return
