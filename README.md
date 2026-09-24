@@ -47,7 +47,7 @@ Listen to Gqrx, AirPlay Receiver, ControlBooth), and Files & Speech
 | File | Purpose |
 |---|---|
 | `AntennaHeadTVApp.swift` | App entry point. |
-| `AntennaHeadAPIClient.swift` | Thin `URLSession` wrapper over `AntennaHeadAPI`'s types/endpoints. Plain HTTP, no auth yet — see below. |
+| `AntennaHeadAPIClient.swift` | Thin `URLSession` wrapper over `AntennaHeadAPI`'s types/endpoints. Plain HTTP; sends AntennaHead's web login (Basic Auth) when one is entered. Also holds `WebLogin` and the Keychain helper for its password. |
 | `AntennaHeadViewModel.swift` | `@Observable` state for the connection and every section (now-playing, favorites, categories, devices, recordings, ControlBooth/AirPlay status, Gqrx status, the Play Audio Files and Text to Speech folder listings, RSS feeds), loaded lazily per section rather than all upfront. Also owns the shared `AVPlayer`: normally pointed at AntennaHead's HLS mount (`/hls/index.m3u8`, same host:port as the JSON API, since the live stream reflects whatever's currently tuned rather than being per-frequency), but swappable to a recording's Range-capable download URL for real seek support, then back to live the next time a listen action runs — mirrors the web UI's own live/download-mode `<audio>` element switching (`Web/index.html`). |
 | `ContentView.swift` | `ConnectScreen` (Bonjour list + manual host entry) → `MainScreen`: the Now Playing strip, the sidebar, and one detail view per section. |
 
@@ -57,9 +57,10 @@ Listen to Gqrx, AirPlay Receiver, ControlBooth), and Files & Speech
   (`host:port`, e.g. `192.168.1.23:8090`). AntennaHead already advertises
   itself as generic `_http._tcp`/`_https._tcp`; a dedicated service type for
   unambiguous discovery from this app is the natural next step.
-- **HTTPS / Basic Auth.** The client only speaks plain HTTP with no
-  credentials, unlike the web UI. Fine for getting the rest of the app built
-  and tested; not fine to ship as-is if AntennaHead's HTTPS/auth is enabled.
+- **HTTPS.** The client only speaks plain HTTP. AntennaHead's web login
+  (Basic Auth) is supported: enter the username and password on the connect
+  screen (the password is kept in the Keychain), and they're sent with API
+  calls, the live stream, and recording playback.
 - **Push updates.** Now Playing polls `/api/v1/now-playing` every 2 seconds,
   matching the web UI's own cadence. An SSE/WebSocket channel is a flagged
   follow-up once there's a second client (watchOS) that would also benefit

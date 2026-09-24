@@ -33,9 +33,6 @@ final class ServerBrowser {
             if advertisement.apiVersion > BonjourAdvertisement.currentAPIVersion {
                 return "Needs a newer version of this app"
             }
-            if advertisement.requiresAuth {
-                return "Web login is on — not supported here yet"
-            }
             return nil
         }
     }
