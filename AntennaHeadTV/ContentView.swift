@@ -423,54 +423,61 @@ private struct MainScreen: View {
     }
 }
 
-/// Station (or recording) name, frequency, and status on the left, with
-/// Captions, Spatial Audio, and Stop on the right. The buttons keep their
-/// full size and the text truncates instead: when a long station name used
-/// to squeeze buttons like these, the focus engine skipped them entirely.
+/// Two lines: the station (or recording) name and frequency across the full
+/// width, then the status text with Captions, Spatial Audio, and Stop on the
+/// right. The name gets its own line because sources like dsd-neo's talkgroup
+/// updates ("ControlBooth: <pipeline> — <talkgroup> (TG 3)") were truncated
+/// when it shared a line with the buttons. The buttons keep their full size
+/// and the status text truncates instead: when a long name used to squeeze
+/// buttons like these, the focus engine skipped them entirely.
 private struct NowPlayingStrip: View {
     var viewModel: AntennaHeadViewModel
     @Binding var selection: Section
 
     var body: some View {
-        HStack(spacing: 32) {
-            Image(systemName: "waveform")
-                .font(.title2)
-                .foregroundStyle(.tint)
-
-            VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 32) {
+                Image(systemName: "waveform")
+                    .font(.title2)
+                    .foregroundStyle(.tint)
                 header
-                if let detail = statusLine {
-                    Text(detail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                    // Wraps rather than truncating: the end of the name is
+                    // often the part that matters, e.g. a talkgroup number.
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .lineLimit(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
 
-            HStack(spacing: 16) {
-                ForEach([Section.captions, .spatialAudio]) { section in
-                    Button {
-                        selection = section
-                    } label: {
-                        Label(section.rawValue, systemImage: section.systemImage)
+            HStack(spacing: 32) {
+                Text(statusLine ?? "")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                HStack(spacing: 16) {
+                    ForEach([Section.captions, .spatialAudio]) { section in
+                        Button {
+                            selection = section
+                        } label: {
+                            Label(section.rawValue, systemImage: section.systemImage)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(section == selection ? .accentColor : nil)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(section == selection ? .accentColor : nil)
-                }
 
-                Button {
-                    Task { await viewModel.stop() }
-                } label: {
-                    Label("Stop", systemImage: "stop.fill")
+                    Button {
+                        Task { await viewModel.stop() }
+                    } label: {
+                        Label("Stop", systemImage: "stop.fill")
+                    }
+                    .disabled(!viewModel.isPlayingRecording && viewModel.nowPlaying?.taskMode == .stopped)
                 }
-                .disabled(!viewModel.isPlayingRecording && viewModel.nowPlaying?.taskMode == .stopped)
+                .lineLimit(1)
+                .fixedSize()
             }
-            .lineLimit(1)
-            .fixedSize()
         }
         .padding(.horizontal, 60)
-        .padding(.vertical, 24)
+        .padding(.vertical, 20)
         .focusSection()
     }
 
@@ -496,10 +503,12 @@ private struct NowPlayingStrip: View {
         }
     }
 
-    /// `nil` when it would only repeat the header, e.g. "Filler" under "Filler".
+    /// `nil` when it would only repeat the header, e.g. "Filler" under
+    /// "Filler", or "ControlBooth: <pipeline>" under "ControlBooth: <pipeline>
+    /// — <talkgroup>".
     private var statusLine: String? {
         if viewModel.isPlayingRecording { return "Playing recording" }
-        guard let status = viewModel.nowPlaying, status.statusText != status.stationName else { return nil }
+        guard let status = viewModel.nowPlaying, !status.stationName.hasPrefix(status.statusText) else { return nil }
         return status.statusText
     }
 }
