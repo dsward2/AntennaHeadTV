@@ -285,8 +285,24 @@ enum Section: String, Identifiable {
     /// The sidebar icon: `systemImage`, except ControlBooth, which uses a
     /// glyph of its own app icon's mixing board (a template image, so it
     /// tints like the SF Symbols around it).
-    var icon: Image {
-        self == .controlBooth ? Image("ControlBoothGlyph") : Image(systemName: systemImage)
+    @ViewBuilder var icon: some View {
+        if self == .controlBooth {
+            ControlBoothGlyph()
+        } else {
+            Image(systemName: systemImage)
+        }
+    }
+}
+
+/// ControlBooth's mixing-board glyph (the `ControlBoothGlyph` template image),
+/// sized like an SF Symbol. An asset image draws at its SVG's own 100 pt, so
+/// it takes its frame from a hidden SF Symbol instead, which follows the
+/// surrounding font the way the neighbouring symbols do.
+struct ControlBoothGlyph: View {
+    var body: some View {
+        Image(systemName: "square")
+            .hidden()
+            .overlay { Image("ControlBoothGlyph").resizable().scaledToFit() }
     }
 }
 
@@ -819,8 +835,11 @@ private struct ControlBoothDetail: View {
                     .padding(60)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if status.pipelineNames.isEmpty {
-                    ContentUnavailableView("No Pipelines", image: "ControlBoothGlyph",
-                                           description: Text("No pipelines are configured in ControlBooth."))
+                    ContentUnavailableView {
+                        Label { Text("No Pipelines") } icon: { ControlBoothGlyph() }
+                    } description: {
+                        Text("No pipelines are configured in ControlBooth.")
+                    }
                 } else {
                     List(status.pipelineNames, id: \.self) { name in
                         Button(name) {
