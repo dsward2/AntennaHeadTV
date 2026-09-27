@@ -45,6 +45,12 @@ final class AntennaHeadViewModel {
     /// recording playback at all.
     private(set) var isPlayingRecording = false
     private(set) var nowPlayingRecordingName: String?
+    /// True while the user has paused local playback (Play/Pause button or
+    /// the Siri Remote). Only the Apple TV's own audio pauses; the server
+    /// keeps running whatever it's tuned to.
+    private(set) var isPaused = false
+    /// Whether there's a player for Play/Pause to act on.
+    var canPlayPause: Bool { player != nil }
     var errorMessage: String?
     /// The message `refreshNowPlaying()` last put in `errorMessage`, if any.
     private var pollErrorMessage: String?
@@ -253,6 +259,7 @@ final class AntennaHeadViewModel {
         guard let player, let url = serverURL(recording.downloadPath) else { return }
         player.replaceCurrentItem(with: playerItem(url))
         player.play()
+        isPaused = false
         isPlayingRecording = true
         nowPlayingRecordingName = recording.fileName
     }
@@ -424,6 +431,7 @@ final class AntennaHeadViewModel {
         let newPlayer = AVPlayer(playerItem: playerItem(url))
         newPlayer.play()
         player = newPlayer
+        isPaused = false
         isPlayingRecording = false
         nowPlayingRecordingName = nil
     }
@@ -445,6 +453,7 @@ final class AntennaHeadViewModel {
         player?.pause()
         player = nil
         liveURL = nil
+        isPaused = false
         isPlayingRecording = false
         nowPlayingRecordingName = nil
     }
@@ -461,5 +470,24 @@ final class AntennaHeadViewModel {
             nowPlayingRecordingName = nil
         }
         player?.play()
+        isPaused = false
+    }
+
+    /// Pauses or resumes local playback. A recording resumes where it left
+    /// off. The live stream resumes at the live point instead, by reloading
+    /// it: continuing an HLS live stream from where it was paused would play
+    /// it minutes behind, or stall once those segments have aged out.
+    func togglePlayPause() {
+        guard let player else { return }
+        if isPaused {
+            if !isPlayingRecording, let liveURL {
+                player.replaceCurrentItem(with: playerItem(liveURL))
+            }
+            player.play()
+            isPaused = false
+        } else {
+            player.pause()
+            isPaused = true
+        }
     }
 }
