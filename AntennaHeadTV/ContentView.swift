@@ -381,10 +381,15 @@ private struct MainScreen: View {
     private var sidebar: some View {
         List {
             ForEach(Section.sidebarGroups, id: \.title) { group in
-                SwiftUI.Section(group.title) {
+                SwiftUI.Section {
                     ForEach(group.sections) { section in
                         sidebarRow(section)
                     }
+                } header: {
+                    // Room between the heading and its first row, which
+                    // otherwise sat right up against it.
+                    Text(group.title)
+                        .padding(.bottom, 8)
                 }
             }
             SwiftUI.Section {
@@ -392,6 +397,7 @@ private struct MainScreen: View {
                     viewModel.disconnect()
                 } label: {
                     Label("Disconnect", systemImage: "xmark.circle")
+                        .labelStyle(SidebarLabelStyle())
                 }
             }
         }
@@ -404,7 +410,10 @@ private struct MainScreen: View {
         } label: {
             HStack {
                 Label { Text(section.rawValue) } icon: { section.icon }
+                    .labelStyle(SidebarLabelStyle())
                     .fontWeight(isSelected ? .semibold : .regular)
+                    // Indented under the group heading.
+                    .padding(.leading, 20)
                 Spacer()
                 if isSelected {
                     Image(systemName: "chevron.right")
@@ -1356,4 +1365,17 @@ private struct CheckRow: View {
 
 #Preview {
     ContentView()
+}
+
+/// Sidebar rows: every icon in a fixed-width column, so the titles line up
+/// whatever each SF Symbol's own width, with a clear gap before the title
+/// (the default style left some icons touching it).
+private struct SidebarLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 20) {
+            configuration.icon
+                .frame(width: 44)
+            configuration.title
+        }
+    }
 }
