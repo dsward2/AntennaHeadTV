@@ -274,12 +274,19 @@ enum Section: String, Identifiable {
         case .devices: "mic.fill"
         case .gqrx: "dial.medium"
         case .airPlay: "airplayaudio"
-        case .controlBooth: "slider.horizontal.3"
+        case .controlBooth: "slider.horizontal.3" // unused: see `icon`
         case .recordings: "recordingtape"
         case .audioFiles: "music.note.list"
         case .textToSpeech: "text.bubble"
         case .rssHeadlines: "dot.radiowaves.up.forward"
         }
+    }
+
+    /// The sidebar icon: `systemImage`, except ControlBooth, which uses a
+    /// glyph of its own app icon's mixing board (a template image, so it
+    /// tints like the SF Symbols around it).
+    var icon: Image {
+        self == .controlBooth ? Image("ControlBoothGlyph") : Image(systemName: systemImage)
     }
 }
 
@@ -376,7 +383,7 @@ private struct MainScreen: View {
             selection = section
         } label: {
             HStack {
-                Label(section.rawValue, systemImage: section.systemImage)
+                Label { Text(section.rawValue) } icon: { section.icon }
                     .fontWeight(isSelected ? .semibold : .regular)
                 Spacer()
                 if isSelected {
@@ -812,7 +819,7 @@ private struct ControlBoothDetail: View {
                     .padding(60)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if status.pipelineNames.isEmpty {
-                    ContentUnavailableView("No Pipelines", systemImage: "slider.horizontal.3",
+                    ContentUnavailableView("No Pipelines", image: "ControlBoothGlyph",
                                            description: Text("No pipelines are configured in ControlBooth."))
                 } else {
                     List(status.pipelineNames, id: \.self) { name in
