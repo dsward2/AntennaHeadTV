@@ -361,6 +361,10 @@ private struct MainScreen: View {
             .focusSection()
         }
         .focusScope(focusNamespace)
+        // The Siri Remote's Play/Pause button, wherever focus is. The player
+        // is a bare AVPlayer (no AVPlayerViewController), so nothing handles
+        // the button unless the app does.
+        .onPlayPauseCommand { viewModel.togglePlayPause() }
         // Owns the now-playing poll, since the strip is always on screen.
         // Matches the web UI's own refresh cadence; a real push channel
         // (SSE/WebSocket) is the flagged follow-up.
@@ -447,7 +451,7 @@ private struct MainScreen: View {
 }
 
 /// Two lines: the station (or recording) name and frequency across the full
-/// width, then the status text with Captions, Spatial Audio, and Stop on the
+/// width, then the status text with Captions, Spatial Audio, Play/Pause, and Stop on the
 /// right. The name gets its own line because sources like dsd-neo's talkgroup
 /// updates ("ControlBooth: <pipeline> — <talkgroup> (TG 3)") were truncated
 /// when it shared a line with the buttons. The buttons keep their full size
@@ -487,6 +491,19 @@ private struct NowPlayingStrip: View {
                         .buttonStyle(.bordered)
                         .tint(section == selection ? .accentColor : nil)
                     }
+
+                    // Pauses only the Apple TV's own audio; Stop (below) ends
+                    // the source on the Mac and switches to the filler.
+                    Button {
+                        viewModel.togglePlayPause()
+                    } label: {
+                        if viewModel.isPaused {
+                            Label("Play", systemImage: "play.fill")
+                        } else {
+                            Label("Pause", systemImage: "pause.fill")
+                        }
+                    }
+                    .disabled(!viewModel.canPlayPause)
 
                     Button {
                         Task { await viewModel.stop() }
