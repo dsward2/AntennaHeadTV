@@ -249,6 +249,7 @@ enum Section: String, Identifiable {
     case devices = "Devices"
     case gqrx = "Listen to Gqrx"
     case airPlay = "AirPlay Receiver"
+    case radio = "AntennaHead Radio"
     case controlBooth = "ControlBooth"
     case recordings = "Recordings"
     case audioFiles = "Play Audio Files"
@@ -261,7 +262,7 @@ enum Section: String, Identifiable {
     /// (see above).
     static let sidebarGroups: [(title: String, sections: [Section])] = [
         ("Radio", [.favorites, .categories]),
-        ("Live Sources", [.devices, .gqrx, .airPlay, .controlBooth]),
+        ("Live Sources", [.devices, .gqrx, .airPlay, .radio, .controlBooth]),
         ("Files & Speech", [.recordings, .audioFiles, .textToSpeech, .rssHeadlines]),
     ]
 
@@ -274,6 +275,7 @@ enum Section: String, Identifiable {
         case .devices: "mic.fill"
         case .gqrx: "dial.medium"
         case .airPlay: "airplayaudio"
+        case .radio: "radio"
         case .controlBooth: "slider.horizontal.3" // unused: see `icon`
         case .recordings: "recordingtape"
         case .audioFiles: "music.note.list"
@@ -435,6 +437,7 @@ private struct MainScreen: View {
         case .devices: DevicesDetail(viewModel: viewModel)
         case .gqrx: GqrxDetail(viewModel: viewModel)
         case .airPlay: AirPlayDetail(viewModel: viewModel)
+        case .radio: RadioDetail(viewModel: viewModel)
         case .controlBooth: ControlBoothDetail(viewModel: viewModel)
         case .recordings: RecordingsDetail(viewModel: viewModel)
         case .audioFiles:
@@ -1069,6 +1072,78 @@ private struct AirPlayDetail: View {
         if !enabled { return "Not in use" }
         if status.airPlayReceivingAudio == true { return "Receiving AirPlay audio" }
         return "Idle \u{2014} advertising, no AirPlay client connected"
+    }
+}
+
+/// ControlBooth's AntennaHead Radio station: Go On Air / Stop, status and the
+/// song playing. Mirrors the AntennaHead Radio section of the web UI's
+/// ControlBooth page, and refreshes while shown since the station takes a
+/// few seconds to start and changes segments on its own.
+private struct RadioDetail: View {
+    var viewModel: AntennaHeadViewModel
+
+    var body: some View {
+        Group {
+            if let status = viewModel.controlBoothStatus {
+                VStack(alignment: .leading, spacing: 32) {
+                    if !status.isRunning {
+                        Text("AntennaHead Radio is part of ControlBooth, which isn't running.")
+                            .foregroundStyle(.secondary)
+                        Button("Launch ControlBooth") {
+                            Task {
+                                await viewModel.launchControlBooth()
+                                try? await Task.sleep(for: .seconds(3))
+                                await viewModel.loadControlBoothStatus()
+                            }
+                        }
+                    } else if status.radioPhase == nil {
+                        Text("This ControlBooth doesn't have AntennaHead Radio. Update ControlBooth on the Mac.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text(status.radioStatusText ?? "")
+                            .font(.headline)
+                        if let song = status.radioNowPlaying {
+                            Text("Now playing: \(song)")
+                        }
+                        if let error = status.radioLastError {
+                            Text(error)
+                                .foregroundStyle(.red)
+                                .frame(maxWidth: 1000, alignment: .leading)
+                        }
+                        if status.isRadioOnAir {
+                            Button {
+                                Task { await viewModel.stopRadio() }
+                            } label: {
+                                Label("Stop", systemImage: "stop.fill")
+                            }
+                            .disabled(status.radioPhase == "stopping")
+                        } else {
+                            Button {
+                                Task { await viewModel.startRadio() }
+                            } label: {
+                                Label("Go On Air", systemImage: "play.fill")
+                            }
+                        }
+                        Text("Music with an announcer who talks over song endings and reads the news and weather, set up in ControlBooth's AntennaHead Radio tab on the Mac.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: 1000, alignment: .leading)
+                    }
+                }
+                .padding(60)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .navigationTitle("AntennaHead Radio")
+        .task {
+            while !Task.isCancelled {
+                await viewModel.loadControlBoothStatus()
+                try? await Task.sleep(for: .seconds(3))
+            }
+        }
     }
 }
 
