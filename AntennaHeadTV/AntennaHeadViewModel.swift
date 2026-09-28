@@ -318,6 +318,20 @@ final class AntennaHeadViewModel {
         await loadControlBoothStatus()
     }
 
+    /// Puts ControlBooth's AntennaHead Radio on the air. The station switches
+    /// AntennaHead to itself a few seconds later; the live stream carries on
+    /// throughout, so playback just continues.
+    func startRadio() async {
+        await startSource { try await $0.startRadio() }
+        await loadControlBoothStatus()
+    }
+
+    /// Off the air: the station hands AntennaHead back to the filler.
+    func stopRadio() async {
+        await startSource { try await $0.stopRadio() }
+        await loadControlBoothStatus()
+    }
+
     // MARK: Gqrx
 
     func loadGqrxStatus() async {

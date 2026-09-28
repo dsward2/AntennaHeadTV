@@ -335,4 +335,16 @@ actor AntennaHeadAPIClient {
     func stopAirPlay() async throws -> NowPlayingStatus {
         try await post(APIEndpoint.controlBoothAirPlayStop)
     }
+
+    // MARK: AntennaHead Radio (via ControlBooth)
+
+    @discardableResult
+    func startRadio() async throws -> NowPlayingStatus {
+        try await post(APIEndpoint.controlBoothRadioStart)
+    }
+
+    @discardableResult
+    func stopRadio() async throws -> NowPlayingStatus {
+        try await post(APIEndpoint.controlBoothRadioStop)
+    }
 }
