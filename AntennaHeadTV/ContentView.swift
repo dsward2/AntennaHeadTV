@@ -1111,6 +1111,14 @@ private struct RadioDetail: View {
                                 .frame(maxWidth: 1000, alignment: .leading)
                         }
                         if status.isRadioOnAir {
+                            if status.radioCanSkip != nil {
+                                Button {
+                                    Task { await viewModel.skipRadioSong() }
+                                } label: {
+                                    Label("Skip Song", systemImage: "forward.end.fill")
+                                }
+                                .disabled(status.radioCanSkip != true)
+                            }
                             Button {
                                 Task { await viewModel.stopRadio() }
                             } label: {
