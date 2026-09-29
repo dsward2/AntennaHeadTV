@@ -326,6 +326,18 @@ final class AntennaHeadViewModel {
         await loadControlBoothStatus()
     }
 
+    /// Gong, fade, next song. The source doesn't change, so playback is left
+    /// alone (the gong arrives in the stream already playing).
+    func skipRadioSong() async {
+        do {
+            try await client.skipRadioSong()
+            errorMessage = nil
+        } catch {
+            report(error)
+        }
+        await loadControlBoothStatus()
+    }
+
     /// Off the air: the station hands AntennaHead back to the filler.
     func stopRadio() async {
         await startSource { try await $0.stopRadio() }

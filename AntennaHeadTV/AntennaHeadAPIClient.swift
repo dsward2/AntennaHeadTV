@@ -347,4 +347,9 @@ actor AntennaHeadAPIClient {
     func stopRadio() async throws -> NowPlayingStatus {
         try await post(APIEndpoint.controlBoothRadioStop)
     }
+
+    @discardableResult
+    func skipRadioSong() async throws -> NowPlayingStatus {
+        try await post(APIEndpoint.controlBoothRadioSkip)
+    }
 }
