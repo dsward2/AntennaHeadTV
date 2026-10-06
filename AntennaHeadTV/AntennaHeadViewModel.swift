@@ -28,6 +28,7 @@ final class AntennaHeadViewModel {
     private(set) var devices: [DeviceSummary] = []
     private(set) var recordings: [RecordingSummary] = []
     private(set) var controlBoothStatus: ControlBoothStatus?
+    private(set) var dsdNeoStatus: DsdNeoStatus?
     private(set) var captions: CaptionsStatus?
     private(set) var spatialAudio: SpatialAudioStatus?
     private(set) var gqrxStatus: GqrxStatus?
@@ -122,6 +123,7 @@ final class AntennaHeadViewModel {
         devices = []
         recordings = []
         controlBoothStatus = nil
+        dsdNeoStatus = nil
         captions = nil
         spatialAudio = nil
         gqrxStatus = nil
@@ -342,6 +344,49 @@ final class AntennaHeadViewModel {
     func stopRadio() async {
         await startSource { try await $0.stopRadio() }
         await loadControlBoothStatus()
+    }
+
+    // MARK: dsd-neo Scanner
+
+    func loadDsdNeoStatus() async {
+        do {
+            dsdNeoStatus = try await client.dsdNeoStatus()
+            errorMessage = nil
+        } catch {
+            report(error)
+        }
+    }
+
+    /// Listens to the scanner (ControlBooth's dsd-neo Scanner pipeline).
+    func startDsdNeo() async {
+        guard let name = dsdNeoStatus?.pipelineName else { return }
+        await startControlBoothPipeline(named: name)
+        await loadDsdNeoStatus()
+    }
+
+    func stopDsdNeo() async {
+        await stopControlBooth()
+        await loadDsdNeoStatus()
+    }
+
+    /// Switches the scanner to a saved system (AWIN, CWIN, …) and control
+    /// channel; a running scanner restarts on it within a few seconds.
+    func setDsdNeoConfiguration(id: String, controlChannelHz: Int?) async {
+        do {
+            dsdNeoStatus = try await client.setDsdNeoConfiguration(id: id, controlChannelHz: controlChannelHz)
+            errorMessage = nil
+        } catch {
+            report(error)
+        }
+    }
+
+    func skipDsdNeoCall() async {
+        do {
+            dsdNeoStatus = try await client.skipDsdNeoCall()
+            errorMessage = nil
+        } catch {
+            report(error)
+        }
     }
 
     // MARK: Gqrx

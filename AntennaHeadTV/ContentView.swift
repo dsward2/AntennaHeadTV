@@ -250,6 +250,7 @@ enum Section: String, Identifiable {
     case gqrx = "Listen to Gqrx"
     case airPlay = "AirPlay Receiver"
     case radio = "AntennaHead Radio"
+    case dsdNeo = "dsd-neo"
     case controlBooth = "ControlBooth"
     case recordings = "Recordings"
     case audioFiles = "Play Audio Files"
@@ -262,7 +263,7 @@ enum Section: String, Identifiable {
     /// (see above).
     static let sidebarGroups: [(title: String, sections: [Section])] = [
         ("Radio", [.favorites, .categories]),
-        ("Live Sources", [.devices, .gqrx, .airPlay, .radio, .controlBooth]),
+        ("Live Sources", [.devices, .gqrx, .airPlay, .radio, .dsdNeo, .controlBooth]),
         ("Files & Speech", [.recordings, .audioFiles, .textToSpeech, .rssHeadlines]),
     ]
 
@@ -276,6 +277,7 @@ enum Section: String, Identifiable {
         case .gqrx: "dial.medium"
         case .airPlay: "airplayaudio"
         case .radio: "radio"
+        case .dsdNeo: "antenna.radiowaves.left.and.right"
         case .controlBooth: "slider.horizontal.3" // unused: see `icon`
         case .recordings: "recordingtape"
         case .audioFiles: "music.note.list"
@@ -438,6 +440,7 @@ private struct MainScreen: View {
         case .gqrx: GqrxDetail(viewModel: viewModel)
         case .airPlay: AirPlayDetail(viewModel: viewModel)
         case .radio: RadioDetail(viewModel: viewModel)
+        case .dsdNeo: DsdNeoDetail(viewModel: viewModel)
         case .controlBooth: ControlBoothDetail(viewModel: viewModel)
         case .recordings: RecordingsDetail(viewModel: viewModel)
         case .audioFiles:
@@ -1151,6 +1154,149 @@ private struct RadioDetail: View {
                 await viewModel.loadControlBoothStatus()
                 try? await Task.sleep(for: .seconds(3))
             }
+        }
+    }
+}
+
+/// ControlBooth's dsd-neo Scanner: Listen/Stop/Skip, and which saved system
+/// (AWIN, CWIN, …) and control channel it follows. Choosing one stays on this
+/// screen; a running scanner restarts on it within a few seconds.
+private struct DsdNeoDetail: View {
+    var viewModel: AntennaHeadViewModel
+    @State private var isSwitching = false
+
+    var body: some View {
+        Group {
+            if let status = viewModel.dsdNeoStatus {
+                if !status.isRunning {
+                    VStack(spacing: 16) {
+                        Text("The dsd-neo Scanner is part of ControlBooth, which isn't running.")
+                            .foregroundStyle(.secondary)
+                        Button("Launch ControlBooth") {
+                            Task {
+                                await viewModel.launchControlBooth()
+                                try? await Task.sleep(for: .seconds(3))
+                                await viewModel.loadDsdNeoStatus()
+                            }
+                        }
+                    }
+                    .padding(60)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if status.pipelineName == nil {
+                    Text("ControlBooth has no dsd-neo Scanner pipeline. Set it up in ControlBooth's dsd-neo Scanner tab.")
+                        .foregroundStyle(.secondary)
+                        .padding(60)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                } else if !status.installed {
+                    Text("dsd-neo isn't installed on the Mac.")
+                        .foregroundStyle(.secondary)
+                        .padding(60)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                } else {
+                    content(status)
+                }
+            } else {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .navigationTitle("dsd-neo")
+        .task {
+            // Refreshes while open: the scanner restarts and hears calls on
+            // its own, and the system can be changed elsewhere.
+            while !Task.isCancelled {
+                if !isSwitching { await viewModel.loadDsdNeoStatus() }
+                try? await Task.sleep(for: .seconds(3))
+            }
+        }
+    }
+
+    private func content(_ status: DsdNeoStatus) -> some View {
+        List {
+            SwiftUI.Section {
+                Text(Self.statusText(status))
+                    .foregroundStyle(.secondary)
+                if status.isListening {
+                    if status.isActive {
+                        Button {
+                            Task { await viewModel.skipDsdNeoCall() }
+                        } label: {
+                            Label("Skip Call", systemImage: "forward.end.fill")
+                        }
+                    }
+                    Button {
+                        Task { await viewModel.stopDsdNeo() }
+                    } label: {
+                        Label("Stop", systemImage: "stop.fill")
+                    }
+                } else if status.configured {
+                    Button {
+                        Task { await viewModel.startDsdNeo() }
+                    } label: {
+                        Label("Listen", systemImage: "play.fill")
+                    }
+                } else {
+                    Text("Choose a system below, or set up the scanner in ControlBooth.")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if status.configurations.isEmpty {
+                Text("Update ControlBooth on the Mac to choose a system here.")
+                    .foregroundStyle(.secondary)
+            } else {
+                SwiftUI.Section("System") {
+                    ForEach(status.configurations) { configuration in
+                        Button {
+                            switchTo(configuration.id, controlChannelHz: nil)
+                        } label: {
+                            HStack {
+                                Text(configuration.name)
+                                Spacer()
+                                if configuration.id == status.activeConfigurationID {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                        .disabled(isSwitching)
+                    }
+                }
+                if let active = status.activeConfiguration, !active.controlChannels.isEmpty {
+                    SwiftUI.Section("Control Channel") {
+                        ForEach(active.controlChannels, id: \.hz) { channel in
+                            Button {
+                                switchTo(active.id, controlChannelHz: channel.hz)
+                            } label: {
+                                HStack {
+                                    Text(channel.title)
+                                    Spacer()
+                                    if channel.hz == status.controlChannelHz {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                            .disabled(isSwitching)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func switchTo(_ id: String, controlChannelHz: Int?) {
+        isSwitching = true
+        Task {
+            await viewModel.setDsdNeoConfiguration(id: id, controlChannelHz: controlChannelHz)
+            try? await Task.sleep(for: .seconds(1))
+            isSwitching = false
+        }
+    }
+
+    private static func statusText(_ status: DsdNeoStatus) -> String {
+        switch status.state {
+        case "running": return status.talkgroupText.map { "Running — last heard \($0)" } ?? "Running — waiting for a clear call"
+        case "restarting": return "Restarting dsd-neo"
+        case "failed": return status.message ?? "Stopped after an error"
+        default: return "Not running"
         }
     }
 }

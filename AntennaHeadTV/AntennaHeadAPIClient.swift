@@ -336,6 +336,21 @@ actor AntennaHeadAPIClient {
         try await post(APIEndpoint.controlBoothAirPlayStop)
     }
 
+    // MARK: dsd-neo Scanner (via ControlBooth)
+
+    func dsdNeoStatus() async throws -> DsdNeoStatus {
+        try await get(APIEndpoint.dsdNeoStatus)
+    }
+
+    func setDsdNeoConfiguration(id: String, controlChannelHz: Int?) async throws -> DsdNeoStatus {
+        try await post(APIEndpoint.dsdNeoConfiguration,
+                       body: SetDsdNeoConfigurationRequest(configurationID: id, controlChannelHz: controlChannelHz))
+    }
+
+    func skipDsdNeoCall() async throws -> DsdNeoStatus {
+        try await post(APIEndpoint.dsdNeoSkip)
+    }
+
     // MARK: AntennaHead Radio (via ControlBooth)
 
     @discardableResult
